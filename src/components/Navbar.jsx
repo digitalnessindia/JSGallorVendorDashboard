@@ -28,7 +28,7 @@ const Navbar = () => {
           {/* Desktop Buttons */}
           <div className="hidden md:flex items-center gap-4">
             <button
-              onClick={() => navigate("/register")}
+              onClick={() => navigate("/login")}
               className="border bg-[#F3F4F6] h-10 px-4 py-2 border-gray-700 text-black hover:bg-gray-800 hover:text-white   rounded-xl  font-semibold  transition">
               Login
             </button>

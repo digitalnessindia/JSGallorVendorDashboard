@@ -9,6 +9,7 @@ import Footer from "./components/Footer"
 import TestimonialsSection from "./components/Testimonials"
 import RegistrationForm from "./components/RegistrationForm"
 import RegistrationHeroSection from "./components/RegistrationHeroSection";
+import VendorLogin from "./components/Login";
 
 
 function HomePage() {
@@ -42,6 +43,7 @@ function VendorPortal() {
     <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/register" element={<RegistrationPage />} />
+      <Route path="/login" element={<VendorLogin />} />
     </Routes>
   );
 }

@@ -9,7 +9,7 @@ import {
   LogOut,
   X,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 const navItems = [
   { name: "Dashboard", icon: LayoutDashboard, path: "/" },
@@ -20,8 +20,25 @@ const navItems = [
   { name: "Help", icon: CircleHelp, path: "/help" },
 ];
 
-const Sidebar = ({ sidebarOpen, setSidebarOpen, activeItem = "Dashboard" }) => {
+const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Determine active item based on current path
+  const getActiveItem = () => {
+    const currentPath = location.pathname;
+    const active = navItems.find(item => currentPath === item.path || 
+      (item.path !== "/vendor-dashboard" && currentPath.startsWith(item.path)));
+    return active ? active.name : "Dashboard";
+  };
+
+  const activeItem = getActiveItem();
+
+  const handleLogout = () => {
+    localStorage.removeItem("vendorToken");
+    localStorage.removeItem("vendor");
+    window.location.href = "/vendor-login";
+  };
 
   return (
     <>
@@ -39,6 +56,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen, activeItem = "Dashboard" }) => {
           px-5 py-6
           transition-transform duration-300 ease-in-out
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+          flex flex-col
         `}
       >
         <div className="flex items-start justify-between">
@@ -73,7 +91,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen, activeItem = "Dashboard" }) => {
           </div>
         </div>
 
-        <nav className="mt-8 space-y-2">
+        <nav className="mt-8 flex-1 space-y-2">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = item.name === activeItem;
@@ -82,14 +100,16 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen, activeItem = "Dashboard" }) => {
               <button
                 key={item.name}
                 onClick={() => navigate(item.path)}
-                className={`group flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all duration-200 ${isActive
-                  ? "bg-white text-[#111827] shadow-md"
-                  : "text-[#1f2937] hover:bg-white/70 hover:shadow-sm"
-                  }`}
+                className={`group flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all duration-200 ${
+                  isActive
+                    ? "bg-white text-[#111827] shadow-md"
+                    : "text-[#1f2937] hover:bg-white/70 hover:shadow-sm"
+                }`}
               >
                 <span
-                  className={`flex h-10 w-10 items-center justify-center rounded-xl ${isActive ? "bg-[#C1E1C1]" : "bg-white/60"
-                    }`}
+                  className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+                    isActive ? "bg-[#C1E1C1]" : "bg-white/60"
+                  }`}
                 >
                   <Icon size={18} />
                 </span>
@@ -99,8 +119,12 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen, activeItem = "Dashboard" }) => {
           })}
         </nav>
 
-        <div className="mt-8 border-t border-black/10 pt-5">
-          <button className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 hover:bg-white/70">
+        {/* Logout button - moved up slightly */}
+        <div className="pt-5 mt-2 border-t border-black/10">
+          <button
+            onClick={handleLogout}
+            className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 hover:bg-white/70 transition"
+          >
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/60">
               <LogOut size={18} />
             </span>

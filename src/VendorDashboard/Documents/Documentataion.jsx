@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import axios from "../../utils/axios"; // your custom axios instance (adds token)
+import { useNavigate } from "react-router-dom";
+import axios from "../../utils/axios";
 import { Loader2, Eye, Download, Trash2, Upload } from "lucide-react";
 
 const documentCategories = [
@@ -9,6 +10,8 @@ const documentCategories = [
 ];
 
 const Documentation = () => {
+  const navigate = useNavigate();
+  const [vendorId, setVendorId] = useState(null);
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -18,27 +21,50 @@ const Documentation = () => {
   const [selectedFiles, setSelectedFiles] = useState([]);
   const fileInputRef = useRef(null);
 
-  // Fetch existing documents on mount
+  // Get vendorId from localStorage
   useEffect(() => {
-    fetchDocuments();
-  }, []);
-
-  const fetchDocuments = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get("/api/vendors/documents");
-      if (response.data.success) {
-        setDocuments(response.data.documents);
-      } else {
-        setError("Failed to load documents");
+    const stored = localStorage.getItem("vendor");
+    if (stored) {
+      try {
+        const vendor = JSON.parse(stored);
+        if (vendor._id) {
+          setVendorId(vendor._id);
+        } else {
+          setError("Vendor ID missing. Please login again.");
+          navigate("/vendor-login");
+        }
+      } catch (e) {
+        console.error("Parse error", e);
+        setError("Invalid vendor data. Please login again.");
+        navigate("/vendor-login");
       }
-    } catch (err) {
-      console.error("Fetch error:", err);
-      setError(err.response?.data?.message || "Could not load documents");
-    } finally {
-      setLoading(false);
+    } else {
+      setError("Please login to access documents.");
+      navigate("/vendor-login");
     }
-  };
+  }, [navigate]);
+
+  // Fetch documents when vendorId is available
+  useEffect(() => {
+    if (!vendorId) return;
+    const fetchDocuments = async () => {
+      try {
+        setLoading(true);
+        const response = await axios.get(`/api/vendors/documents?vendorId=${vendorId}`);
+        if (response.data.success) {
+          setDocuments(response.data.documents);
+        } else {
+          setError("Failed to load documents");
+        }
+      } catch (err) {
+        console.error("Fetch error:", err);
+        setError(err.response?.data?.message || "Could not load documents");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDocuments();
+  }, [vendorId]);
 
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
@@ -49,6 +75,10 @@ const Documentation = () => {
   };
 
   const handleUpload = async () => {
+    if (!vendorId) {
+      alert("Vendor ID missing. Please login again.");
+      return;
+    }
     if (selectedFiles.length === 0) {
       alert("Please select at least one file.");
       return;
@@ -62,6 +92,7 @@ const Documentation = () => {
     setError("");
 
     const formData = new FormData();
+    formData.append("vendorId", vendorId);
     formData.append("documentName", docName);
     formData.append("category", selectedCategory);
     selectedFiles.forEach((file) => {
@@ -74,7 +105,8 @@ const Documentation = () => {
       });
       if (response.data.success) {
         // Refresh document list
-        await fetchDocuments();
+        const refreshRes = await axios.get(`/api/vendors/documents?vendorId=${vendorId}`);
+        setDocuments(refreshRes.data.documents);
         // Reset form
         setDocName("");
         setSelectedCategory("MOU");
@@ -92,9 +124,13 @@ const Documentation = () => {
   };
 
   const handleDelete = async (docId) => {
+    if (!vendorId) return;
     if (!window.confirm("Are you sure you want to delete this document?")) return;
     try {
-      const response = await axios.delete(`/api/vendors/documents/${docId}`);
+      // Send vendorId in the request body (using `data` for DELETE)
+      const response = await axios.delete(`/api/vendors/documents/${docId}`, {
+        data: { vendorId },
+      });
       if (response.data.success) {
         setDocuments((prev) => prev.filter((doc) => doc._id !== docId));
       } else {
@@ -124,9 +160,10 @@ const Documentation = () => {
   };
 
   const getFileUrl = (filePath) => {
-    // Assume backend serves uploaded files at /uploads
     if (!filePath) return "#";
-    return `https://api.jsgallor.com/${filePath.replace(/\\/g, "/")}`;
+    // Assume backend serves uploaded files at /uploads
+    const clean = filePath.replace(/^uploads[\\/]/, "");
+    return `https://api.jsgallor.com/uploads/${clean}`;
   };
 
   if (loading) {
@@ -151,7 +188,7 @@ const Documentation = () => {
           </p>
         </div>
 
-        {/* Category Cards (optional – they now open file upload with preset category) */}
+        {/* Category Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {documentCategories.map((cat) => (
             <div

@@ -30,6 +30,8 @@ import {
 } from "recharts";
 import axios from "../src/utils/axios";
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://api.jsgallor.com";
+
 const VendorDashboard = () => {
   const navigate = useNavigate();
   const [vendor, setVendor] = useState(null);
@@ -39,54 +41,69 @@ const VendorDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // Get vendorId from localStorage (stored after login)
+  const vendorId = useMemo(() => {
+    const stored = localStorage.getItem("vendor");
+    if (stored) {
+      try {
+        const vendorObj = JSON.parse(stored);
+        return vendorObj._id;
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  }, []);
+
   // Fetch all dashboard data
   useEffect(() => {
+    if (!vendorId) {
+      setError("Vendor not found. Please login again.");
+      setLoading(false);
+      navigate("/vendor-login");
+      return;
+    }
+
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
-        // Fetch vendor profile
-        const profileRes = await axios.get("/api/vendors/me");
+        setError("");
+
+        // 1. Fetch vendor profile
+        const profileRes = await axios.get(`/api/vendors/me?vendorId=${vendorId}`);
         if (profileRes.data.success) setVendor(profileRes.data.vendor);
 
-        // Fetch estimations
-        const estRes = await axios.get("/api/vendors/estimations");
+        // 2. Fetch estimations
+        const estRes = await axios.get(`/api/vendors/estimations?vendorId=${vendorId}`);
         if (estRes.data.success) setEstimations(estRes.data.estimations || []);
 
-        // Fetch portfolio
-        const portRes = await axios.get("/api/vendors/portfolio");
+        // 3. Fetch portfolio
+        const portRes = await axios.get(`/api/vendors/portfolio?vendorId=${vendorId}`);
         if (portRes.data.success) setPortfolio(portRes.data.portfolio);
 
-        // Fetch documents
-        const docRes = await axios.get("/api/vendors/documents");
+        // 4. Fetch documents
+        const docRes = await axios.get(`/api/vendors/documents?vendorId=${vendorId}`);
         if (docRes.data.success) setDocuments(docRes.data.documents || []);
       } catch (err) {
         console.error("Dashboard fetch error:", err);
         setError(err.response?.data?.message || "Failed to load dashboard");
-        if (err.response?.status === 401) navigate("/vendor-login");
       } finally {
         setLoading(false);
       }
     };
     fetchDashboardData();
-  }, [navigate]);
+  }, [vendorId, navigate]);
 
   // Derived statistics
   const stats = useMemo(() => {
     const totalProjects = estimations.length;
-    const activeEstimations = estimations.filter(
-      (e) => e.step !== "Closing"
-    ).length;
-    const completedProjects = estimations.filter(
-      (e) => e.step === "Closing"
-    ).length;
-    const totalRevenue = estimations.reduce(
-      (sum, e) => sum + (Number(e.estimatedCost) || 0),
-      0
-    );
+    const activeEstimations = estimations.filter((e) => e.step !== "Closing").length;
+    const completedProjects = estimations.filter((e) => e.step === "Closing").length;
+    const totalRevenue = estimations.reduce((sum, e) => sum + (Number(e.estimatedCost) || 0), 0);
     return { totalProjects, activeEstimations, completedProjects, totalRevenue };
   }, [estimations]);
 
-  // Data for charts
+  // Chart data
   const projectStatusData = [
     { name: "Active", value: stats.activeEstimations, color: "#2d6a4f" },
     { name: "Completed", value: stats.completedProjects, color: "#d3b97a" },
@@ -95,20 +112,16 @@ const VendorDashboard = () => {
   const monthlyData = useMemo(() => {
     const months = {};
     estimations.forEach((est) => {
-      const month = new Date(est.createdAt).toLocaleString("default", {
-        month: "short",
-      });
+      const month = new Date(est.createdAt).toLocaleString("default", { month: "short" });
       months[month] = (months[month] || 0) + (Number(est.estimatedCost) || 0);
     });
     return Object.entries(months).map(([name, value]) => ({ name, value }));
   }, [estimations]);
 
-  // Recent estimations (last 5)
   const recentEstimations = [...estimations]
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     .slice(0, 5);
 
-  // Recent documents (last 5)
   const recentDocuments = [...documents]
     .sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt))
     .slice(0, 5);
@@ -147,9 +160,7 @@ const VendorDashboard = () => {
           <h1 className="text-3xl font-bold text-gray-800">
             Welcome back, {vendor?.vendorName || vendor?.businessName || "Vendor"}
           </h1>
-          <p className="text-gray-600 mt-1">
-            Here's what's happening with your business today.
-          </p>
+          <p className="text-gray-600 mt-1">Here's what's happening with your business today.</p>
         </div>
 
         {/* Stats Grid */}
@@ -158,9 +169,7 @@ const VendorDashboard = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">Total Projects</p>
-                <h3 className="text-2xl font-bold text-gray-800 mt-1">
-                  {stats.totalProjects}
-                </h3>
+                <h3 className="text-2xl font-bold text-gray-800 mt-1">{stats.totalProjects}</h3>
               </div>
               <div className="h-12 w-12 bg-green-100 rounded-full flex items-center justify-center">
                 <Briefcase className="h-6 w-6 text-green-700" />
@@ -172,9 +181,7 @@ const VendorDashboard = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">Active Estimations</p>
-                <h3 className="text-2xl font-bold text-gray-800 mt-1">
-                  {stats.activeEstimations}
-                </h3>
+                <h3 className="text-2xl font-bold text-gray-800 mt-1">{stats.activeEstimations}</h3>
               </div>
               <div className="h-12 w-12 bg-yellow-100 rounded-full flex items-center justify-center">
                 <Clock className="h-6 w-6 text-yellow-700" />
@@ -186,9 +193,7 @@ const VendorDashboard = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">Completed Projects</p>
-                <h3 className="text-2xl font-bold text-gray-800 mt-1">
-                  {stats.completedProjects}
-                </h3>
+                <h3 className="text-2xl font-bold text-gray-800 mt-1">{stats.completedProjects}</h3>
               </div>
               <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
                 <CheckCircle2 className="h-6 w-6 text-blue-700" />
@@ -213,11 +218,8 @@ const VendorDashboard = () => {
 
         {/* Charts Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* Project Status Pie Chart */}
           <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">
-              Project Status Distribution
-            </h3>
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Project Status Distribution</h3>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -229,12 +231,10 @@ const VendorDashboard = () => {
                     outerRadius={80}
                     paddingAngle={5}
                     dataKey="value"
-                    label={({ name, percent }) =>
-                      `${name} ${(percent * 100).toFixed(0)}%`
-                    }
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                   >
-                    {projectStatusData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    {projectStatusData.map((entry, idx) => (
+                      <Cell key={`cell-${idx}`} fill={entry.color} />
                     ))}
                   </Pie>
                   <Tooltip />
@@ -243,11 +243,8 @@ const VendorDashboard = () => {
             </div>
           </div>
 
-          {/* Monthly Revenue Chart */}
           <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">
-              Monthly Revenue (₹)
-            </h3>
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Monthly Revenue (₹)</h3>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={monthlyData}>
@@ -264,12 +261,9 @@ const VendorDashboard = () => {
 
         {/* Recent Projects & Documents */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* Recent Estimations */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-              <h3 className="text-lg font-semibold text-gray-800">
-                Recent Projects
-              </h3>
+              <h3 className="text-lg font-semibold text-gray-800">Recent Projects</h3>
               <button
                 onClick={() => navigate("/vendor/estimations")}
                 className="text-sm text-green-700 hover:text-green-800 font-medium"
@@ -287,9 +281,7 @@ const VendorDashboard = () => {
                   >
                     <div className="flex justify-between items-start">
                       <div>
-                        <h4 className="font-medium text-gray-800">
-                          {proj.projectName}
-                        </h4>
+                        <h4 className="font-medium text-gray-800">{proj.projectName}</h4>
                         <p className="text-sm text-gray-500 mt-1">
                           Client: {proj.clientName} • {proj.location}
                         </p>
@@ -319,12 +311,9 @@ const VendorDashboard = () => {
             </div>
           </div>
 
-          {/* Recent Documents */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-              <h3 className="text-lg font-semibold text-gray-800">
-                Recent Documents
-              </h3>
+              <h3 className="text-lg font-semibold text-gray-800">Recent Documents</h3>
               <button
                 onClick={() => navigate("/vendor/documents")}
                 className="text-sm text-green-700 hover:text-green-800 font-medium"
@@ -335,10 +324,7 @@ const VendorDashboard = () => {
             <div className="divide-y divide-gray-100">
               {recentDocuments.length > 0 ? (
                 recentDocuments.map((doc) => (
-                  <div
-                    key={doc._id}
-                    className="px-6 py-4 flex items-center justify-between"
-                  >
+                  <div key={doc._id} className="px-6 py-4 flex items-center justify-between">
                     <div className="flex items-center space-x-3">
                       <FileText className="h-5 w-5 text-gray-400" />
                       <div>
@@ -346,13 +332,12 @@ const VendorDashboard = () => {
                           {doc.documentName || doc.fileName}
                         </p>
                         <p className="text-xs text-gray-500">
-                          {doc.category || "Legal"} •{" "}
-                          {new Date(doc.uploadedAt).toLocaleDateString()}
+                          {doc.category || "Legal"} • {new Date(doc.uploadedAt).toLocaleDateString()}
                         </p>
                       </div>
                     </div>
                     <a
-                      href={`https://api.jsgallor.com/${doc.filePath}`}
+                      href={`${API_BASE}/${doc.filePath}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-green-700 hover:text-green-800 text-sm"
@@ -362,9 +347,7 @@ const VendorDashboard = () => {
                   </div>
                 ))
               ) : (
-                <div className="px-6 py-8 text-center text-gray-500">
-                  No documents uploaded yet.
-                </div>
+                <div className="px-6 py-8 text-center text-gray-500">No documents uploaded yet.</div>
               )}
             </div>
           </div>
@@ -372,38 +355,29 @@ const VendorDashboard = () => {
 
         {/* Portfolio Summary & Quick Actions */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Portfolio Summary Card */}
           <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">
-              Portfolio Summary
-            </h3>
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Portfolio Summary</h3>
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
                   <Video className="h-4 w-4 text-gray-500" />
                   <span className="text-gray-600">Videos</span>
                 </div>
-                <span className="font-semibold text-gray-800">
-                  {portfolio.videos?.length || 0}
-                </span>
+                <span className="font-semibold text-gray-800">{portfolio.videos?.length || 0}</span>
               </div>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
                   <ImageIcon className="h-4 w-4 text-gray-500" />
                   <span className="text-gray-600">Images</span>
                 </div>
-                <span className="font-semibold text-gray-800">
-                  {portfolio.images?.length || 0}
-                </span>
+                <span className="font-semibold text-gray-800">{portfolio.images?.length || 0}</span>
               </div>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
                   <ListChecks className="h-4 w-4 text-gray-500" />
                   <span className="text-gray-600">Testimonials</span>
                 </div>
-                <span className="font-semibold text-gray-800">
-                  {portfolio.testimonials?.length || 0}
-                </span>
+                <span className="font-semibold text-gray-800">{portfolio.testimonials?.length || 0}</span>
               </div>
             </div>
             <button
@@ -414,11 +388,8 @@ const VendorDashboard = () => {
             </button>
           </div>
 
-          {/* Quick Actions Card */}
           <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">
-              Quick Actions
-            </h3>
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Quick Actions</h3>
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => navigate("/vendor/estimations")}
@@ -451,29 +422,21 @@ const VendorDashboard = () => {
             </div>
           </div>
 
-          {/* Recent Activity Placeholder */}
           <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">
-              Recent Activity
-            </h3>
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Recent Activity</h3>
             <div className="space-y-4">
               {estimations.slice(0, 3).map((est, idx) => (
                 <div key={idx} className="flex items-start gap-3">
                   <div className="w-2 h-2 mt-2 rounded-full bg-green-500"></div>
                   <div>
                     <p className="text-sm text-gray-700">
-                      Project <strong>{est.projectName}</strong> updated to{" "}
-                      {est.step}
+                      Project <strong>{est.projectName}</strong> updated to {est.step}
                     </p>
-                    <p className="text-xs text-gray-400">
-                      {new Date(est.updatedAt).toLocaleString()}
-                    </p>
+                    <p className="text-xs text-gray-400">{new Date(est.updatedAt).toLocaleString()}</p>
                   </div>
                 </div>
               ))}
-              {estimations.length === 0 && (
-                <p className="text-gray-500 text-sm">No recent activity.</p>
-              )}
+              {estimations.length === 0 && <p className="text-gray-500 text-sm">No recent activity.</p>}
             </div>
           </div>
         </div>

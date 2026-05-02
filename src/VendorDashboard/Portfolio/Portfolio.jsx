@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect } from "react";
-import axios from "../../utils/axios"; // your custom axios instance (baseURL + token)
+import { useNavigate } from "react-router-dom";
+import axios from "../../utils/axios";
 import { Loader2, Upload, Edit } from "lucide-react";
 
 const portfolioStats = [
@@ -39,54 +40,77 @@ const getEmbedUrl = (url) => {
 };
 
 const Portfolio = () => {
+  const navigate = useNavigate();
+  const [vendorId, setVendorId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [updating, setUpdating] = useState(false);
 
-  // Portfolio data state
   const [videos, setVideos] = useState([]);
   const [portfolioImages, setPortfolioImages] = useState([]);
   const [testimonials, setTestimonials] = useState([]);
-  const [stats, setStats] = useState(portfolioStats); // static for now, could be dynamic
+  const [stats, setStats] = useState(portfolioStats);
 
-  // Refs for file inputs
   const videoInputRefs = useRef([]);
   const imageInputRefs = useRef([]);
 
-  // Fetch portfolio data on mount
+  // Get vendorId from localStorage
   useEffect(() => {
-    fetchPortfolio();
-  }, []);
-
-  const fetchPortfolio = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get("/api/vendors/portfolio");
-      if (response.data.success) {
-        const data = response.data.portfolio;
-        setVideos(data.videos || []);
-        setPortfolioImages(data.images || []);
-        setTestimonials(data.testimonials || initialTestimonials);
-        // optionally update stats if backend sends them
-        if (data.stats) setStats(data.stats);
-      } else {
-        setError("Failed to load portfolio data");
+    const stored = localStorage.getItem("vendor");
+    if (stored) {
+      try {
+        const vendor = JSON.parse(stored);
+        if (vendor._id) setVendorId(vendor._id);
+        else {
+          setError("Vendor ID missing. Please login again.");
+          navigate("/vendor-login");
+        }
+      } catch (e) {
+        console.error("Parse error", e);
+        setError("Invalid vendor data. Please login again.");
+        navigate("/vendor-login");
       }
-    } catch (err) {
-      console.error("Fetch error:", err);
-      setError(err.response?.data?.message || "Could not load portfolio");
-    } finally {
-      setLoading(false);
+    } else {
+      setError("Please login to access portfolio.");
+      navigate("/vendor-login");
     }
-  };
+  }, [navigate]);
+
+  // Fetch portfolio data when vendorId is available
+  useEffect(() => {
+    if (!vendorId) return;
+    const fetchPortfolio = async () => {
+      try {
+        setLoading(true);
+        const response = await axios.get(`/api/vendors/portfolio?vendorId=${vendorId}`);
+        if (response.data.success) {
+          const data = response.data.portfolio;
+          setVideos(data.videos || []);
+          setPortfolioImages(data.images || []);
+          setTestimonials(data.testimonials || initialTestimonials);
+          if (data.stats) setStats(data.stats);
+        } else {
+          setError("Failed to load portfolio data");
+        }
+      } catch (err) {
+        console.error("Fetch error:", err);
+        setError(err.response?.data?.message || "Could not load portfolio");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPortfolio();
+  }, [vendorId]);
 
   // Update videos (replace an existing video by index)
   const handleVideoFileChange = async (event, index) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    if (!vendorId) return;
 
     setUpdating(true);
     const formData = new FormData();
+    formData.append("vendorId", vendorId);
     formData.append("video", file);
     formData.append("videoIndex", index);
     formData.append("title", videos[index]?.title || "Video");
@@ -96,10 +120,7 @@ const Portfolio = () => {
         headers: { "Content-Type": "multipart/form-data" },
       });
       if (response.data.success) {
-        const updatedVideo = {
-          title: videos[index].title,
-          url: response.data.videoUrl, // new URL from server
-        };
+        const updatedVideo = { title: videos[index].title, url: response.data.videoUrl };
         setVideos((prev) => prev.map((v, i) => (i === index ? updatedVideo : v)));
       } else {
         alert("Video upload failed");
@@ -109,7 +130,7 @@ const Portfolio = () => {
       alert(err.response?.data?.message || "Upload failed");
     } finally {
       setUpdating(false);
-      event.target.value = ""; // reset file input
+      event.target.value = "";
     }
   };
 
@@ -117,9 +138,11 @@ const Portfolio = () => {
   const handleImageFileChange = async (event, index) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    if (!vendorId) return;
 
     setUpdating(true);
     const formData = new FormData();
+    formData.append("vendorId", vendorId);
     formData.append("image", file);
     formData.append("imageIndex", index);
 
@@ -147,6 +170,7 @@ const Portfolio = () => {
 
   // Update testimonial (edit review text)
   const handleEditTestimonial = async (index) => {
+    if (!vendorId) return;
     const newReview = window.prompt("Edit review:", testimonials[index]?.review);
     if (!newReview) return;
 
@@ -156,6 +180,7 @@ const Portfolio = () => {
 
     try {
       const response = await axios.put("/api/vendors/portfolio/testimonials", {
+        vendorId,
         testimonials: updatedTestimonials,
       });
       if (response.data.success) {
@@ -171,12 +196,12 @@ const Portfolio = () => {
     }
   };
 
-  // Add new video (append to list)
+  // Add new video
   const handleAddVideo = async () => {
+    if (!vendorId) return;
     const title = window.prompt("Enter video title:", "New Project Video");
     if (!title) return;
 
-    // For adding a new video, we need to upload a file
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "video/*";
@@ -185,6 +210,7 @@ const Portfolio = () => {
       if (!file) return;
       setUpdating(true);
       const formData = new FormData();
+      formData.append("vendorId", vendorId);
       formData.append("video", file);
       formData.append("title", title);
       try {
@@ -208,9 +234,12 @@ const Portfolio = () => {
 
   // Delete video
   const handleDeleteVideo = async (index) => {
+    if (!vendorId) return;
     if (!window.confirm("Delete this video?")) return;
     try {
-      const response = await axios.delete(`/api/vendors/portfolio/video/${index}`);
+      const response = await axios.delete(`/api/vendors/portfolio/video/${index}`, {
+        data: { vendorId },
+      });
       if (response.data.success) {
         setVideos((prev) => prev.filter((_, i) => i !== index));
       } else {
@@ -235,10 +264,18 @@ const Portfolio = () => {
     return <div className="p-8 text-center text-red-600">{error}</div>;
   }
 
+  // Helper to display file URLs (assuming backend serves uploaded files)
+  const getFileUrl = (url) => {
+    if (!url) return "#";
+    if (url.startsWith("http")) return url;
+    const clean = url.replace(/^uploads[\\/]/, "");
+    return `https://api.jsgallor.com/uploads/${clean}`;
+  };
+
   return (
     <section className="w-full bg-linear-to-br from-[#f7fff5] via-[#fffaf0] to-[#ffffff] px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-8">
-        {/* Hero Section – unchanged */}
+        {/* Hero Section */}
         <div className="overflow-hidden rounded-4xl border border-white/60 bg-white/55 p-6 shadow-[0_20px_60px_rgba(167,224,167,0.18)] backdrop-blur-xl sm:p-8 lg:p-10">
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1.3fr_0.7fr] lg:items-center">
             <div>
@@ -278,7 +315,6 @@ const Portfolio = () => {
               <p className="mt-2 text-base text-[#6b7280]">Showcase your latest videos (YouTube or uploaded).</p>
             </div>
             <button
-              type="button"
               onClick={handleAddVideo}
               disabled={updating}
               className="rounded-full border border-[#a7e0a7]/50 bg-[#f3fff1] px-5 py-2 text-sm font-semibold text-[#355b35] transition hover:bg-[#e8fbe4] disabled:opacity-50"
@@ -293,14 +329,12 @@ const Portfolio = () => {
                   <h3 className="text-xl font-bold text-[#1f2937]">{video.title}</h3>
                   <div className="flex gap-2">
                     <button
-                      type="button"
                       onClick={() => videoInputRefs.current[index]?.click()}
                       className="rounded-full border border-[#f2e4c8] bg-[#fffaf0] px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#7a5c2e] hover:bg-[#fff4df]"
                     >
                       Update
                     </button>
                     <button
-                      type="button"
                       onClick={() => handleDeleteVideo(index)}
                       className="rounded-full border border-red-200 bg-red-50 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-100"
                     >
@@ -326,7 +360,7 @@ const Portfolio = () => {
                     />
                   ) : (
                     <video controls className="h-55 w-full object-cover sm:h-70">
-                      <source src={`https://api.jsgallor.com/${video.url}`} />
+                      <source src={getFileUrl(video.url)} />
                       Your browser does not support the video tag.
                     </video>
                   )}
@@ -343,7 +377,6 @@ const Portfolio = () => {
               <h2 className="text-2xl font-bold text-[#1f2937] sm:text-3xl">Portfolio Images</h2>
               <p className="mt-2 text-base text-[#6b7280]">Manage your portfolio images.</p>
             </div>
-            {/* optional: add new image button */}
           </div>
           <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
             {portfolioImages.map((item, index) => (
@@ -356,14 +389,13 @@ const Portfolio = () => {
                   className="hidden"
                 />
                 <button
-                  type="button"
                   onClick={() => imageInputRefs.current[index]?.click()}
                   className="absolute right-7 top-7 z-10 rounded-full border border-white/80 bg-white/90 px-3 py-1.5 text-xs font-semibold text-[#355b35] shadow-sm transition hover:bg-[#f3fff1]"
                 >
                   Update
                 </button>
                 <img
-                  src={`https://api.jsgallor.com/${item.url}`}
+                  src={getFileUrl(item.url)}
                   alt={item.title}
                   className="h-72 w-full rounded-[22px] object-cover"
                 />
@@ -382,7 +414,6 @@ const Portfolio = () => {
             {testimonials.map((item, index) => (
               <div key={index} className="relative rounded-[26px] border border-white/70 bg-white/70 p-6 shadow-[0_12px_36px_rgba(0,0,0,0.05)] backdrop-blur-lg">
                 <button
-                  type="button"
                   onClick={() => handleEditTestimonial(index)}
                   className="absolute right-4 top-4 rounded-full bg-white/80 p-1.5 text-[#7a5c2e] hover:bg-[#fff4df]"
                 >

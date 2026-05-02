@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState, useEffect } from "react";
-import axios from "../../utils/axios"; // ✅ custom instance with baseURL and token
+import { useNavigate } from "react-router-dom";
+import axios from "../../utils/axios";
 import {
   Search,
   Bell,
@@ -24,7 +25,7 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 
-const API_BASE = "/api/vendors"; // ✅ relative to your baseURL (already includes /api)
+const API_BASE = "/api/vendors";
 
 const workflowSteps = [
   { name: "Estimation", icon: FileSpreadsheet },
@@ -176,6 +177,8 @@ const createEmptyProject = () => ({
 });
 
 const Estimation = () => {
+  const navigate = useNavigate();
+  const [vendorId, setVendorId] = useState(null);
   const [projects, setProjects] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -191,12 +194,31 @@ const Estimation = () => {
   const updateAttachmentRef = useRef(null);
   const closingImageRef = useRef(null);
 
-  // Fetch estimations on mount
+  // Get vendorId from localStorage
   useEffect(() => {
+    const storedVendor = localStorage.getItem("vendor");
+    if (storedVendor) {
+      try {
+        const vendor = JSON.parse(storedVendor);
+        if (vendor._id) setVendorId(vendor._id);
+        else setError("Vendor ID missing. Please login again.");
+      } catch (e) {
+        console.error("Parse error", e);
+        setError("Invalid vendor data. Please login again.");
+      }
+    } else {
+      setError("Please login to access estimations.");
+      navigate("/vendor-login");
+    }
+  }, [navigate]);
+
+  // Fetch estimations when vendorId is available
+  useEffect(() => {
+    if (!vendorId) return;
     const fetchEstimations = async () => {
       try {
         setLoading(true);
-        const response = await axios.get(`${API_BASE}/estimations`);
+        const response = await axios.get(`${API_BASE}/estimations?vendorId=${vendorId}`);
         if (response.data.success && response.data.estimations) {
           const loaded = response.data.estimations.map((est) => ({
             id: est._id,
@@ -231,6 +253,8 @@ const Estimation = () => {
           }));
           setProjects(loaded);
           if (loaded.length > 0) setSelectedProjectId(loaded[0].id);
+        } else {
+          setError(response.data.message || "No estimations found.");
         }
       } catch (err) {
         console.error("Fetch error:", err);
@@ -240,7 +264,7 @@ const Estimation = () => {
       }
     };
     fetchEstimations();
-  }, []);
+  }, [vendorId]);
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId) || null;
   const activeStep = selectedProject ? getStepIndex(selectedProject.step) : 0;
@@ -248,7 +272,6 @@ const Estimation = () => {
     ? vendorStepRequirements[selectedProject.vendorType] || vendorStepRequirements.Interior
     : vendorStepRequirements.Interior;
 
-  // Computed stats
   const totalProjects = projects.length;
   const totalValue = projects.reduce((sum, p) => sum + (Number(p.estimatedCost) || 0), 0);
   const activeEstimations = projects.filter((p) => p.step === "Estimation" || p.step === "Quotation").length;
@@ -338,12 +361,19 @@ const Estimation = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!selectedProject) return;
+    if (!vendorId) {
+      setError("Vendor not identified. Please login again.");
+      return;
+    }
 
     setSubmitting(true);
     setError("");
 
     try {
       const formData = new FormData();
+      // 👇 Add vendorId
+      formData.append("vendorId", vendorId);
+
       const simpleFields = [
         "projectName",
         "estimatedCost",
@@ -403,7 +433,8 @@ const Estimation = () => {
 
       if (response.data.success) {
         alert("Estimation saved successfully!");
-        const refreshRes = await axios.get(`${API_BASE}/estimations`);
+        // Refresh list
+        const refreshRes = await axios.get(`${API_BASE}/estimations?vendorId=${vendorId}`);
         if (refreshRes.data.success) {
           const refreshed = refreshRes.data.estimations.map((est) => ({
             id: est._id,
@@ -438,7 +469,7 @@ const Estimation = () => {
     }
   };
 
-  // Helper render functions
+  // ----- Helper render functions (unchanged) -----
   const renderInput = (label, value, onChange, placeholder, type = "text", disabled = false, icon = null) => (
     <div className="rounded-[22px] border border-white/10 bg-[#0d1729]/70 p-4">
       <label className="mb-2 flex items-center gap-2 text-sm font-medium text-white/80">
@@ -490,7 +521,7 @@ const Estimation = () => {
     );
   };
 
-  // ---------- Step Rendering Functions ----------
+  // ---------- Step Rendering Functions (preserved) ----------
   const renderEstimationSection = () => {
     const isEditing = editModes.estimation;
     return (

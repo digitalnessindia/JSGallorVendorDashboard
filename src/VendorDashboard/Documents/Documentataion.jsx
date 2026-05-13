@@ -11,6 +11,7 @@ const documentCategories = [
 
 const Documentation = () => {
   const navigate = useNavigate();
+  const [vendorId, setVendorId] = useState(null);
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -20,90 +21,50 @@ const Documentation = () => {
   const [selectedFiles, setSelectedFiles] = useState([]);
   const fileInputRef = useRef(null);
 
-  // Helper to get auth token
-  const getAuthToken = () => {
-    const vendor = localStorage.getItem("vendor");
-    if (!vendor) return null;
-    try {
-      const parsed = JSON.parse(vendor);
-      return parsed.token || null;
-    } catch {
-      return null;
-    }
-  };
-
-  // Axios request interceptor to add token
+  // Get vendorId from localStorage
   useEffect(() => {
-    const requestInterceptor = axios.interceptors.request.use(
-      (config) => {
-        const token = getAuthToken();
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
+    const stored = localStorage.getItem("vendor");
+    if (stored) {
+      try {
+        const vendor = JSON.parse(stored);
+        if (vendor._id) {
+          setVendorId(vendor._id);
+        } else {
+          setError("Vendor ID missing. Please login again.");
+          navigate("/vendor-login");
         }
-        return config;
-      },
-      (error) => Promise.reject(error)
-    );
-    return () => {
-      axios.interceptors.request.eject(requestInterceptor);
-    };
-  }, []);
-
-  // Check authentication and fetch documents
-  useEffect(() => {
-    const storedVendor = localStorage.getItem("vendor");
-    if (!storedVendor) {
-      setError("Please login to continue");
-      navigate("/vendor-login");
-      return;
-    }
-
-    try {
-      const vendor = JSON.parse(storedVendor);
-      if (!vendor._id || !vendor.token) {
-        setError("Invalid session. Please login again.");
-        localStorage.removeItem("vendor");
+      } catch (e) {
+        console.error("Parse error", e);
+        setError("Invalid vendor data. Please login again.");
         navigate("/vendor-login");
-        return;
       }
-      // No need to set vendorId state; token is used for auth
-    } catch (e) {
-      console.error("Parse error", e);
-      setError("Invalid vendor data. Please login again.");
-      localStorage.removeItem("vendor");
+    } else {
+      setError("Please login to access documents.");
       navigate("/vendor-login");
     }
   }, [navigate]);
 
-  // Fetch documents (no vendorId param)
+  // Fetch documents when vendorId is available
   useEffect(() => {
+    if (!vendorId) return;
     const fetchDocuments = async () => {
       try {
         setLoading(true);
-        const response = await axios.get("/api/vendors/documents");
+        const response = await axios.get(`/api/vendors/documents?vendorId=${vendorId}`);
         if (response.data.success) {
           setDocuments(response.data.documents);
         } else {
-          setError(response.data.message || "Failed to load documents");
+          setError("Failed to load documents");
         }
       } catch (err) {
         console.error("Fetch error:", err);
-        if (err.response?.status === 401) {
-          setError("Session expired. Please login again.");
-          localStorage.removeItem("vendor");
-          navigate("/vendor-login");
-        } else {
-          setError(err.response?.data?.message || "Could not load documents");
-        }
+        setError(err.response?.data?.message || "Could not load documents");
       } finally {
         setLoading(false);
       }
     };
-
-    if (localStorage.getItem("vendor")) {
-      fetchDocuments();
-    }
-  }, [navigate]);
+    fetchDocuments();
+  }, [vendorId]);
 
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
@@ -114,6 +75,10 @@ const Documentation = () => {
   };
 
   const handleUpload = async () => {
+    if (!vendorId) {
+      alert("Vendor ID missing. Please login again.");
+      return;
+    }
     if (selectedFiles.length === 0) {
       alert("Please select at least one file.");
       return;
@@ -127,6 +92,7 @@ const Documentation = () => {
     setError("");
 
     const formData = new FormData();
+    formData.append("vendorId", vendorId);
     formData.append("documentName", docName);
     formData.append("category", selectedCategory);
     selectedFiles.forEach((file) => {
@@ -139,7 +105,7 @@ const Documentation = () => {
       });
       if (response.data.success) {
         // Refresh document list
-        const refreshRes = await axios.get("/api/vendors/documents");
+        const refreshRes = await axios.get(`/api/vendors/documents?vendorId=${vendorId}`);
         setDocuments(refreshRes.data.documents);
         // Reset form
         setDocName("");
@@ -151,36 +117,28 @@ const Documentation = () => {
       }
     } catch (err) {
       console.error("Upload error:", err);
-      if (err.response?.status === 401) {
-        setError("Session expired. Please login again.");
-        localStorage.removeItem("vendor");
-        navigate("/vendor-login");
-      } else {
-        setError(err.response?.data?.message || "Upload failed");
-      }
+      setError(err.response?.data?.message || "Upload failed");
     } finally {
       setUploading(false);
     }
   };
 
   const handleDelete = async (docId) => {
+    if (!vendorId) return;
     if (!window.confirm("Are you sure you want to delete this document?")) return;
     try {
-      const response = await axios.delete(`/api/vendors/documents/${docId}`);
+      // Send vendorId in the request body (using `data` for DELETE)
+      const response = await axios.delete(`/api/vendors/documents/${docId}`, {
+        data: { vendorId },
+      });
       if (response.data.success) {
         setDocuments((prev) => prev.filter((doc) => doc._id !== docId));
       } else {
-        alert(response.data.message || "Failed to delete document");
+        alert("Failed to delete document");
       }
     } catch (err) {
       console.error("Delete error:", err);
-      if (err.response?.status === 401) {
-        setError("Session expired. Please login again.");
-        localStorage.removeItem("vendor");
-        navigate("/vendor-login");
-      } else {
-        alert(err.response?.data?.message || "Delete failed");
-      }
+      alert(err.response?.data?.message || "Delete failed");
     }
   };
 
@@ -203,9 +161,9 @@ const Documentation = () => {
 
   const getFileUrl = (filePath) => {
     if (!filePath) return "#";
+    // Assume backend serves uploaded files at /uploads
     const clean = filePath.replace(/^uploads[\\/]/, "");
-    const baseUrl = import.meta.env.VITE_API_URL || "";
-    return `${baseUrl}/uploads/${clean}`;
+    return `https://api.jsgallor.com/uploads/${clean}`;
   };
 
   if (loading) {

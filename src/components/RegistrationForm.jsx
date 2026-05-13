@@ -111,9 +111,10 @@ const RegistrationForm = () => {
 
     try {
       // Use the custom axios instance (baseURL already configured)
-      const response = await axios.post("/api/vendors/register", data, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+    const response = await axios.post(
+  "/api/vendors/register",
+  data
+);
 
       if (response.data.success) {
         setSubmitMsg("✅ Registration request sent successfully! Pending admin approval.");

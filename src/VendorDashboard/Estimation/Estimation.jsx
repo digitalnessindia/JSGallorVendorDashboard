@@ -25,7 +25,7 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 
-const API_BASE = "/api/vendors";
+const API_BASE = `${import.meta.env.VITE_API_URL || ""}/api/vendors`;
 
 const workflowSteps = [
   { name: "Estimation", icon: FileSpreadsheet },
@@ -194,32 +194,51 @@ const Estimation = () => {
   const updateAttachmentRef = useRef(null);
   const closingImageRef = useRef(null);
 
-  // Get vendorId from localStorage
+  // Vendor Login useEffect (updated)
   useEffect(() => {
     const storedVendor = localStorage.getItem("vendor");
-    if (storedVendor) {
-      try {
-        const vendor = JSON.parse(storedVendor);
-        if (vendor._id) setVendorId(vendor._id);
-        else setError("Vendor ID missing. Please login again.");
-      } catch (e) {
-        console.error("Parse error", e);
-        setError("Invalid vendor data. Please login again.");
+
+    if (!storedVendor) {
+      setError("Please login to continue");
+      navigate("/vendor-login");
+      return;
+    }
+
+    try {
+      const parsedVendor = JSON.parse(storedVendor);
+      const id = parsedVendor?._id || parsedVendor?.vendorId;
+
+      if (!id) {
+        setError("Vendor session expired. Please login again.");
+        localStorage.removeItem("vendor");
+        navigate("/vendor-login");
+        return;
       }
-    } else {
-      setError("Please login to access estimations.");
+
+      setVendorId(id);
+    } catch (error) {
+      console.error(error);
+      setError("Invalid vendor session");
+      localStorage.removeItem("vendor");
       navigate("/vendor-login");
     }
   }, [navigate]);
 
-  // Fetch estimations when vendorId is available
+  // Fetch Estimations useEffect (updated)
   useEffect(() => {
     if (!vendorId) return;
+
     const fetchEstimations = async () => {
       try {
         setLoading(true);
-        const response = await axios.get(`${API_BASE}/estimations?vendorId=${vendorId}`);
-        if (response.data.success && response.data.estimations) {
+
+        const response = await axios.get(`${API_BASE}/estimations`, {
+          params: {
+            vendorId,
+          },
+        });
+
+        if (response.data.success) {
           const loaded = response.data.estimations.map((est) => ({
             id: est._id,
             _id: est._id,
@@ -232,37 +251,71 @@ const Estimation = () => {
             vendorType: est.vendorType || "Interior",
             step: est.step || "Estimation",
             updatedAt: new Date(est.updatedAt).toLocaleString(),
-            userDetails: est.userDetails || {},
+
+            userDetails: {
+              clientName: est.userDetails?.clientName || "",
+              companyName: est.userDetails?.companyName || "",
+              phone: est.userDetails?.phone || "",
+              email: est.userDetails?.email || "",
+              address: est.userDetails?.address || "",
+            },
+
             quotationDetails: {
-              ...est.quotationDetails,
+              quotationNumber: est.quotationDetails?.quotationNumber || "",
+              quotationDate: est.quotationDetails?.quotationDate || "",
+              validTill: est.quotationDetails?.validTill || "",
+              quotationAmount: est.quotationDetails?.quotationAmount || "",
+              notes: est.quotationDetails?.notes || "",
               quotationDocument: null,
             },
+
             finalOrder: {
-              ...est.finalOrder,
+              updatedDetails: est.finalOrder?.updatedDetails || "",
+              currentStage: est.finalOrder?.currentStage || "",
+              estimationCost: est.finalOrder?.estimationCost || "",
+              description: est.finalOrder?.description || "",
+              stages: est.finalOrder?.stages || "",
               images: [],
             },
+
             updatesSection: {
-              ...est.updatesSection,
+              updateType: est.updatesSection?.updateType || "",
+              progressTitle: est.updatesSection?.progressTitle || "",
+              progressNote: est.updatesSection?.progressNote || "",
+              nextAction: est.updatesSection?.nextAction || "",
+              followUpDate: est.updatesSection?.followUpDate || "",
+              progressPercent: est.updatesSection?.progressPercent || 0,
               attachments: [],
             },
+
             closingSection: {
-              ...est.closingSection,
+              closingSummary: est.closingSection?.closingSummary || "",
+              closingRequirements: est.closingSection?.closingRequirements || "",
+              currentStage: est.closingSection?.currentStage || "",
               finalImages: [],
+              handoverDone: est.closingSection?.handoverDone || false,
+              paymentClosed: est.closingSection?.paymentClosed || false,
+              clientApproved: est.closingSection?.clientApproved || false,
+              supportShared: est.closingSection?.supportShared || false,
             },
+
             estimationDocument: null,
           }));
+
           setProjects(loaded);
-          if (loaded.length > 0) setSelectedProjectId(loaded[0].id);
-        } else {
-          setError(response.data.message || "No estimations found.");
+
+          if (loaded.length > 0) {
+            setSelectedProjectId(loaded[0].id);
+          }
         }
-      } catch (err) {
-        console.error("Fetch error:", err);
-        setError("Failed to load estimations. Please refresh.");
+      } catch (error) {
+        console.error(error);
+        setError("Failed to fetch estimations");
       } finally {
         setLoading(false);
       }
     };
+
     fetchEstimations();
   }, [vendorId]);
 
@@ -290,11 +343,20 @@ const Estimation = () => {
     );
   }, [projects, searchTerm]);
 
+  // Add Project (updated)
   const handleAddProject = () => {
-    const newProject = { ...createEmptyProject(), id: Date.now() };
+    const newProject = {
+      ...createEmptyProject(),
+      id: `temp-${Date.now()}`,
+    };
+
     setProjects((prev) => [newProject, ...prev]);
     setSelectedProjectId(newProject.id);
-    setEditModes({ estimation: true, quotation: true });
+
+    setEditModes({
+      estimation: true,
+      quotation: true,
+    });
   };
 
   const handleFieldChange = (field, value) => {
@@ -358,118 +420,210 @@ const Estimation = () => {
     handleNestedFieldChange("quotationDetails", "quotationDocument", file);
   };
 
+  // Image Preview Helper (new)
+  const renderImagePreview = (files = []) => {
+    if (!files.length) return null;
+
+    return (
+      <div className="mt-4 flex flex-wrap gap-3">
+        {files.map((file, index) => (
+          <img
+            key={index}
+            src={URL.createObjectURL(file)}
+            alt="preview"
+            className="h-24 w-24 rounded-xl object-cover border border-white/10"
+          />
+        ))}
+      </div>
+    );
+  };
+
+  // Submit Handler (updated)
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     if (!selectedProject) return;
+
     if (!vendorId) {
-      setError("Vendor not identified. Please login again.");
+      setError("Vendor not found");
       return;
     }
 
-    setSubmitting(true);
-    setError("");
-
     try {
+      setSubmitting(true);
+      setError("");
+
       const formData = new FormData();
-      // 👇 Add vendorId
+
       formData.append("vendorId", vendorId);
+      formData.append("projectName", selectedProject.projectName || "");
+      formData.append("estimatedCost", selectedProject.estimatedCost || "");
+      formData.append("description", selectedProject.description || "");
+      formData.append("clientName", selectedProject.clientName || "");
+      formData.append("location", selectedProject.location || "");
+      formData.append("priority", selectedProject.priority || "Medium");
+      formData.append("vendorType", selectedProject.vendorType || "Interior");
+      formData.append("step", selectedProject.step || "Estimation");
 
-      const simpleFields = [
-        "projectName",
-        "estimatedCost",
-        "description",
-        "clientName",
-        "location",
-        "priority",
-        "vendorType",
-        "step",
-      ];
-      simpleFields.forEach((field) => {
-        if (selectedProject[field]) formData.append(field, selectedProject[field]);
-      });
-
-      const nestedSections = [
+      formData.append(
         "userDetails",
+        JSON.stringify(selectedProject.userDetails || {})
+      );
+
+      formData.append(
         "quotationDetails",
+        JSON.stringify({
+          quotationNumber: selectedProject.quotationDetails?.quotationNumber || "",
+          quotationDate: selectedProject.quotationDetails?.quotationDate || "",
+          validTill: selectedProject.quotationDetails?.validTill || "",
+          quotationAmount: selectedProject.quotationDetails?.quotationAmount || "",
+          notes: selectedProject.quotationDetails?.notes || "",
+        })
+      );
+
+      formData.append(
         "finalOrder",
+        JSON.stringify({
+          updatedDetails: selectedProject.finalOrder?.updatedDetails || "",
+          currentStage: selectedProject.finalOrder?.currentStage || "",
+          estimationCost: selectedProject.finalOrder?.estimationCost || "",
+          description: selectedProject.finalOrder?.description || "",
+          stages: selectedProject.finalOrder?.stages || "",
+        })
+      );
+
+      formData.append(
         "updatesSection",
+        JSON.stringify({
+          updateType: selectedProject.updatesSection?.updateType || "",
+          progressTitle: selectedProject.updatesSection?.progressTitle || "",
+          progressNote: selectedProject.updatesSection?.progressNote || "",
+          nextAction: selectedProject.updatesSection?.nextAction || "",
+          followUpDate: selectedProject.updatesSection?.followUpDate || "",
+          progressPercent: selectedProject.updatesSection?.progressPercent || 0,
+        })
+      );
+
+      formData.append(
         "closingSection",
-      ];
-      nestedSections.forEach((section) => {
-        const copy = { ...selectedProject[section] };
-        if (section === "quotationDetails") delete copy.quotationDocument;
-        if (section === "finalOrder") delete copy.images;
-        if (section === "updatesSection") delete copy.attachments;
-        if (section === "closingSection") delete copy.finalImages;
-        formData.append(section, JSON.stringify(copy));
-      });
+        JSON.stringify({
+          closingSummary: selectedProject.closingSection?.closingSummary || "",
+          closingRequirements: selectedProject.closingSection?.closingRequirements || "",
+          currentStage: selectedProject.closingSection?.currentStage || "",
+          handoverDone: selectedProject.closingSection?.handoverDone || false,
+          paymentClosed: selectedProject.closingSection?.paymentClosed || false,
+          clientApproved: selectedProject.closingSection?.clientApproved || false,
+          supportShared: selectedProject.closingSection?.supportShared || false,
+        })
+      );
 
       if (selectedProject.estimationDocument instanceof File) {
         formData.append("estimationDocument", selectedProject.estimationDocument);
       }
+
       if (selectedProject.quotationDetails?.quotationDocument instanceof File) {
         formData.append("quotationDocument", selectedProject.quotationDetails.quotationDocument);
       }
-      selectedProject.finalOrder?.images?.forEach((file) => {
-        if (file instanceof File) formData.append("finalOrderImages", file);
-      });
-      selectedProject.updatesSection?.attachments?.forEach((file) => {
-        if (file instanceof File) formData.append("updateAttachments", file);
-      });
-      selectedProject.closingSection?.finalImages?.forEach((file) => {
-        if (file instanceof File) formData.append("closingImages", file);
-      });
+
+      if (selectedProject.finalOrder?.images?.length > 0) {
+        selectedProject.finalOrder.images.forEach((file) => {
+          formData.append("finalOrderImages", file);
+        });
+      }
+
+      if (selectedProject.updatesSection?.attachments?.length > 0) {
+        selectedProject.updatesSection.attachments.forEach((file) => {
+          formData.append("updateAttachments", file);
+        });
+      }
+
+      if (selectedProject.closingSection?.finalImages?.length > 0) {
+        selectedProject.closingSection.finalImages.forEach((file) => {
+          formData.append("closingImages", file);
+        });
+      }
 
       let response;
+
       if (selectedProject._id) {
-        response = await axios.put(`${API_BASE}/estimations/${selectedProject._id}`, formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
+        response = await axios.put(
+          `${API_BASE}/estimations/${selectedProject._id}`,
+          formData,
+          {
+            headers: {
+              "Content-Type": "multipart/form-data",
+            },
+          }
+        );
       } else {
         response = await axios.post(`${API_BASE}/estimations`, formData, {
-          headers: { "Content-Type": "multipart/form-data" },
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
         });
       }
 
       if (response.data.success) {
-        alert("Estimation saved successfully!");
-        // Refresh list
-        const refreshRes = await axios.get(`${API_BASE}/estimations?vendorId=${vendorId}`);
+        alert("Estimation saved successfully");
+
+        const refreshRes = await axios.get(`${API_BASE}/estimations`, {
+          params: {
+            vendorId,
+          },
+        });
+
         if (refreshRes.data.success) {
-          const refreshed = refreshRes.data.estimations.map((est) => ({
-            id: est._id,
-            _id: est._id,
-            projectName: est.projectName,
-            estimatedCost: est.estimatedCost,
-            description: est.description,
-            clientName: est.clientName,
-            location: est.location,
-            priority: est.priority,
-            vendorType: est.vendorType,
-            step: est.step,
-            updatedAt: new Date(est.updatedAt).toLocaleString(),
-            userDetails: est.userDetails || {},
-            quotationDetails: { ...est.quotationDetails, quotationDocument: null },
-            finalOrder: { ...est.finalOrder, images: [] },
-            updatesSection: { ...est.updatesSection, attachments: [] },
-            closingSection: { ...est.closingSection, finalImages: [] },
-            estimationDocument: null,
-          }));
-          setProjects(refreshed);
-          if (refreshed.length > 0) setSelectedProjectId(refreshed[0].id);
+          setProjects(
+            refreshRes.data.estimations.map((est) => ({
+              id: est._id,
+              _id: est._id,
+              projectName: est.projectName,
+              estimatedCost: est.estimatedCost,
+              description: est.description,
+              clientName: est.clientName,
+              location: est.location,
+              priority: est.priority,
+              vendorType: est.vendorType,
+              step: est.step,
+              updatedAt: new Date(est.updatedAt).toLocaleString(),
+              userDetails: est.userDetails || {},
+              quotationDetails: {
+                ...est.quotationDetails,
+                quotationDocument: null,
+              },
+              finalOrder: {
+                ...est.finalOrder,
+                images: [],
+              },
+              updatesSection: {
+                ...est.updatesSection,
+                attachments: [],
+              },
+              closingSection: {
+                ...est.closingSection,
+                finalImages: [],
+              },
+              estimationDocument: null,
+            }))
+          );
         }
-      } else {
-        setError(response.data.message || "Failed to save estimation.");
       }
     } catch (err) {
-      console.error(err);
-      setError(err.response?.data?.message || "Server error. Please try again.");
+      console.error("Submit Error:", err);
+
+      if (err.response?.data?.message) {
+        setError(err.response.data.message);
+      } else if (err.message) {
+        setError(err.message);
+      } else {
+        setError("Something went wrong");
+      }
     } finally {
       setSubmitting(false);
     }
   };
 
-  // ----- Helper render functions (unchanged) -----
+  // ----- Helper render functions -----
   const renderInput = (label, value, onChange, placeholder, type = "text", disabled = false, icon = null) => (
     <div className="rounded-[22px] border border-white/10 bg-[#0d1729]/70 p-4">
       <label className="mb-2 flex items-center gap-2 text-sm font-medium text-white/80">
@@ -521,7 +675,7 @@ const Estimation = () => {
     );
   };
 
-  // ---------- Step Rendering Functions (preserved) ----------
+  // ---------- Step Rendering Functions ----------
   const renderEstimationSection = () => {
     const isEditing = editModes.estimation;
     return (
@@ -662,6 +816,7 @@ const Estimation = () => {
           <div><h3 className="text-sm font-semibold text-white">Upload Stage / Order Images</h3><p className="mt-1 text-sm text-white/50">Upload stage images, production photos, material references, or order-related visuals.</p><div className="mt-3">{renderFileNames(selectedProject?.finalOrder?.images)}</div></div>
           <div className="flex gap-3"><input ref={finalOrderImageRef} type="file" multiple onChange={(e) => handleArrayFilesChange("finalOrder", "images", e.target.files)} className="hidden" accept=".jpg,.jpeg,.png,.webp" /><button type="button" onClick={() => finalOrderImageRef.current?.click()} className="inline-flex items-center gap-2 rounded-2xl bg-[#8B5A2B] px-5 py-3 text-sm font-semibold text-white transition hover:scale-[1.02]"><ImageIcon size={16} /> Upload Images</button></div>
         </div>
+        {renderImagePreview(selectedProject?.finalOrder?.images)}
       </div>
     </div>
   );
@@ -720,6 +875,7 @@ const Estimation = () => {
           <div><h3 className="text-sm font-semibold text-white">Upload Final Closing Images</h3><p className="mt-1 text-sm text-white/50">Upload handover images, installed product images, final completion photos, or client delivery visuals.</p><div className="mt-3">{renderFileNames(selectedProject?.closingSection?.finalImages)}</div></div>
           <div className="flex gap-3"><input ref={closingImageRef} type="file" multiple onChange={(e) => handleArrayFilesChange("closingSection", "finalImages", e.target.files)} className="hidden" accept=".jpg,.jpeg,.png,.webp" /><button type="button" onClick={() => closingImageRef.current?.click()} className="inline-flex items-center gap-2 rounded-2xl bg-[#8B5A2B] px-5 py-3 text-sm font-semibold text-white transition hover:scale-[1.02]"><ImageIcon size={16} /> Upload Closing Images</button></div>
         </div>
+        {renderImagePreview(selectedProject?.closingSection?.finalImages)}
       </div>
     </div>
   );
@@ -850,7 +1006,14 @@ const Estimation = () => {
                     <button type="button" onClick={handlePrevStep} disabled={activeStep === 0} className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40">Previous Step</button>
                     <div className="flex flex-col gap-3 sm:flex-row">
                       <button type="button" onClick={handleNextStep} className="rounded-2xl bg-[#a7e0a7] px-5 py-3 text-sm font-semibold text-[#111827] transition hover:scale-[1.02]">Next Step</button>
-                      <button type="submit" disabled={submitting} className="rounded-2xl bg-white px-6 py-3 text-sm font-semibold text-[#111827] transition hover:scale-[1.02] disabled:opacity-50">{submitting ? "Saving..." : "Submit Details"}</button>
+                      {/* Submit Button (updated) */}
+                      <button
+                        type="submit"
+                        disabled={submitting}
+                        className="rounded-2xl bg-white px-6 py-3 text-sm font-semibold text-[#111827] transition hover:scale-[1.02] disabled:opacity-50"
+                      >
+                        {submitting ? "Saving..." : "Submit Details"}
+                      </button>
                     </div>
                   </div>
                   {error && <div className="text-red-400 text-sm text-center">{error}</div>}

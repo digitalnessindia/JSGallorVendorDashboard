@@ -108,6 +108,30 @@ const vendorStepRequirements = {
       "Final settlement completed",
     ],
   },
+  Other: {
+    finalOrderStages: [
+      "Requirement Collected",
+      "Work Started",
+      "Work In Progress",
+      "Review Stage",
+      "Ready for Delivery",
+      "Completed",
+    ],
+    updateTypes: [
+      "General Update",
+      "Work Progress",
+      "Client Approval",
+      "Material / Resource Update",
+      "Payment Follow-up",
+    ],
+    closingChecks: [
+      "Final files/images uploaded",
+      "Client approval collected",
+      "Pending balance cleared",
+      "Handover completed",
+      "Support details shared",
+    ],
+  },
 };
 
 const getStepIndex = (stepName) =>
@@ -117,6 +141,25 @@ const priorityStyles = {
   High: "bg-red-500/10 text-red-300 border-red-400/20",
   Medium: "bg-[#8B5A2B]/15 text-[#e6c39d] border-[#8B5A2B]/30",
   Low: "bg-[#a7e0a7]/10 text-[#d7ffd7] border-[#a7e0a7]/20",
+};
+
+const defaultVendorTypes = ["Interior", "Furniture", "Civil"];
+
+const getVendorTypeForUI = (vendorType = "") => {
+  if (!vendorType) return "Interior";
+  return defaultVendorTypes.includes(vendorType) ? vendorType : "Other";
+};
+
+const getOtherVendorTypeForUI = (vendorType = "") => {
+  if (!vendorType || defaultVendorTypes.includes(vendorType)) return "";
+  return vendorType;
+};
+
+const getVendorTypeDisplay = (project) => {
+  if (!project) return "Interior";
+  return project.vendorType === "Other"
+    ? project.vendorTypeOther || "Other"
+    : project.vendorType || "Interior";
 };
 
 const createEmptyProject = () => ({
@@ -130,6 +173,7 @@ const createEmptyProject = () => ({
   location: "",
   priority: "Medium",
   vendorType: "Interior",
+  vendorTypeOther: "",
   step: "Estimation",
   updatedAt: "Just now",
   userDetails: {
@@ -248,7 +292,8 @@ const Estimation = () => {
             clientName: est.clientName || "",
             location: est.location || "",
             priority: est.priority || "Medium",
-            vendorType: est.vendorType || "Interior",
+            vendorType: getVendorTypeForUI(est.vendorType),
+            vendorTypeOther: getOtherVendorTypeForUI(est.vendorType),
             step: est.step || "Estimation",
             updatedAt: new Date(est.updatedAt).toLocaleString(),
 
@@ -322,7 +367,7 @@ const Estimation = () => {
   const selectedProject = projects.find((p) => p.id === selectedProjectId) || null;
   const activeStep = selectedProject ? getStepIndex(selectedProject.step) : 0;
   const vendorConfig = selectedProject
-    ? vendorStepRequirements[selectedProject.vendorType] || vendorStepRequirements.Interior
+    ? vendorStepRequirements[selectedProject.vendorType] || vendorStepRequirements.Other
     : vendorStepRequirements.Interior;
 
   const totalProjects = projects.length;
@@ -339,7 +384,8 @@ const Estimation = () => {
         p.clientName?.toLowerCase().includes(term) ||
         p.location?.toLowerCase().includes(term) ||
         p.step?.toLowerCase().includes(term) ||
-        p.vendorType?.toLowerCase().includes(term)
+        p.vendorType?.toLowerCase().includes(term) ||
+        p.vendorTypeOther?.toLowerCase().includes(term)
     );
   }, [projects, searchTerm]);
 
@@ -462,7 +508,12 @@ const Estimation = () => {
       formData.append("clientName", selectedProject.clientName || "");
       formData.append("location", selectedProject.location || "");
       formData.append("priority", selectedProject.priority || "Medium");
-      formData.append("vendorType", selectedProject.vendorType || "Interior");
+      formData.append(
+        "vendorType",
+        selectedProject.vendorType === "Other"
+          ? selectedProject.vendorTypeOther || "Other"
+          : selectedProject.vendorType || "Interior"
+      );
       formData.append("step", selectedProject.step || "Estimation");
 
       formData.append(
@@ -583,7 +634,8 @@ const Estimation = () => {
               clientName: est.clientName,
               location: est.location,
               priority: est.priority,
-              vendorType: est.vendorType,
+              vendorType: getVendorTypeForUI(est.vendorType),
+              vendorTypeOther: getOtherVendorTypeForUI(est.vendorType),
               step: est.step,
               updatedAt: new Date(est.updatedAt).toLocaleString(),
               userDetails: est.userDetails || {},
@@ -712,11 +764,31 @@ const Estimation = () => {
           {renderInput("Location", selectedProject?.location, (e) => handleFieldChange("location", e.target.value), "Enter site location", "text", false, <MapPin size={16} className="text-[#a7e0a7]" />)}
           <div className="rounded-[22px] border border-white/10 bg-[#0d1729]/70 p-4">
             <label className="mb-2 text-sm font-medium text-white/80">Vendor Type</label>
-            <select value={selectedProject?.vendorType || "Interior"} onChange={(e) => handleFieldChange("vendorType", e.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-[#a7e0a7]/40 focus:ring-2 focus:ring-[#a7e0a7]/20">
+            <select
+              value={selectedProject?.vendorType || "Interior"}
+              onChange={(e) => {
+                handleFieldChange("vendorType", e.target.value);
+                if (e.target.value !== "Other") {
+                  handleFieldChange("vendorTypeOther", "");
+                }
+              }}
+              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-[#a7e0a7]/40 focus:ring-2 focus:ring-[#a7e0a7]/20"
+            >
               <option className="bg-[#0f172a]" value="Interior">Interior</option>
               <option className="bg-[#0f172a]" value="Furniture">Furniture</option>
               <option className="bg-[#0f172a]" value="Civil">Civil</option>
+              <option className="bg-[#0f172a]" value="Other">Other</option>
             </select>
+
+            {selectedProject?.vendorType === "Other" && (
+              <input
+                type="text"
+                value={selectedProject?.vendorTypeOther || ""}
+                onChange={(e) => handleFieldChange("vendorTypeOther", e.target.value)}
+                placeholder="Enter other vendor type"
+                className="mt-3 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-[#a7e0a7]/40 focus:ring-2 focus:ring-[#a7e0a7]/20"
+              />
+            )}
           </div>
         </div>
 
@@ -950,7 +1022,7 @@ const Estimation = () => {
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="rounded-full bg-[#8B5A2B]/20 px-3 py-1 text-xs font-medium text-[#f0d0a8]">{project.step}</span>
                         <span className={`rounded-full border px-3 py-1 text-xs font-medium ${priorityStyles[project.priority]}`}>{project.priority} Priority</span>
-                        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70">{project.vendorType}</span>
+                        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70">{getVendorTypeDisplay(project)}</span>
                       </div>
                       <h3 className="text-lg font-semibold text-white">{project.projectName || "Untitled Project"}</h3>
                       <div className="flex flex-wrap gap-4 text-sm text-white/55"><span>Client: {project.clientName || "N/A"}</span><span>Location: {project.location || "N/A"}</span></div>
@@ -1026,7 +1098,7 @@ const Estimation = () => {
                   <h3 className="text-xl font-semibold text-white">Estimation Summary</h3>
                   <div className="mt-5 space-y-4 text-sm">
                     <div className="flex items-center justify-between text-white/70"><span>Current Stage</span><span className="font-semibold text-white">{selectedProject?.step}</span></div>
-                    <div className="flex items-center justify-between text-white/70"><span>Vendor Type</span><span className="font-semibold text-white">{selectedProject?.vendorType}</span></div>
+                    <div className="flex items-center justify-between text-white/70"><span>Vendor Type</span><span className="font-semibold text-white">{getVendorTypeDisplay(selectedProject)}</span></div>
                     <div className="flex items-center justify-between text-white/70"><span>Client</span><span className="font-semibold text-white">{selectedProject?.clientName || "Not added"}</span></div>
                     <div className="flex items-center justify-between text-white/70"><span>Estimated Value</span><span className="font-semibold text-[#a7e0a7]">₹{Number(selectedProject?.estimatedCost || 0).toLocaleString("en-IN")}</span></div>
                     <div className="flex items-center justify-between text-white/70"><span>Priority</span><span className="font-semibold text-white">{selectedProject?.priority}</span></div>

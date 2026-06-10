@@ -26,6 +26,13 @@ import {
 } from "lucide-react";
 
 const API_BASE = `${import.meta.env.VITE_API_URL || ""}/api/vendors`;
+const BACKEND_BASE = import.meta.env.VITE_API_URL || "";
+
+const getFileUrl = (filePath = "") => {
+  if (!filePath) return "";
+  if (String(filePath).startsWith("http")) return filePath;
+  return `${BACKEND_BASE}/${String(filePath).replace(/^\/+/, "")}`;
+};
 
 const workflowSteps = [
   { name: "Estimation", icon: FileSpreadsheet },
@@ -169,6 +176,8 @@ const createEmptyProject = () => ({
   estimatedCost: "",
   description: "",
   estimationDocument: null,
+  existingEstimationDocument: "",
+  existingQuotationDocument: "",
   clientName: "",
   location: "",
   priority: "Medium",
@@ -198,6 +207,7 @@ const createEmptyProject = () => ({
     description: "",
     stages: "",
     images: [],
+    existingImages: [],
   },
   updatesSection: {
     updateType: "",
@@ -207,17 +217,89 @@ const createEmptyProject = () => ({
     followUpDate: "",
     progressPercent: 0,
     attachments: [],
+    existingAttachments: [],
   },
   closingSection: {
     closingSummary: "",
     closingRequirements: "",
     currentStage: "",
     finalImages: [],
+    existingFinalImages: [],
     handoverDone: false,
     paymentClosed: false,
     clientApproved: false,
     supportShared: false,
   },
+});
+
+
+const mapEstimationFromApi = (est) => ({
+  id: est._id,
+  _id: est._id,
+  projectName: est.projectName || "",
+  estimatedCost: est.estimatedCost || "",
+  description: est.description || "",
+  clientName: est.clientName || "",
+  location: est.location || "",
+  priority: est.priority || "Medium",
+  vendorType: getVendorTypeForUI(est.vendorType),
+  vendorTypeOther: getOtherVendorTypeForUI(est.vendorType),
+  step: est.step || "Estimation",
+  updatedAt: est.updatedAt ? new Date(est.updatedAt).toLocaleString() : "Just now",
+
+  userDetails: {
+    clientName: est.userDetails?.clientName || "",
+    companyName: est.userDetails?.companyName || "",
+    phone: est.userDetails?.phone || "",
+    email: est.userDetails?.email || "",
+    address: est.userDetails?.address || "",
+  },
+
+  quotationDetails: {
+    quotationNumber: est.quotationDetails?.quotationNumber || "",
+    quotationDate: est.quotationDetails?.quotationDate || "",
+    validTill: est.quotationDetails?.validTill || "",
+    quotationAmount: est.quotationDetails?.quotationAmount || "",
+    notes: est.quotationDetails?.notes || "",
+    quotationDocument: null,
+  },
+
+  finalOrder: {
+    updatedDetails: est.finalOrder?.updatedDetails || "",
+    currentStage: est.finalOrder?.currentStage || "",
+    estimationCost: est.finalOrder?.estimationCost || "",
+    description: est.finalOrder?.description || "",
+    stages: est.finalOrder?.stages || "",
+    images: [],
+    existingImages: est.finalOrderImages || [],
+  },
+
+  updatesSection: {
+    updateType: est.updatesSection?.updateType || "",
+    progressTitle: est.updatesSection?.progressTitle || "",
+    progressNote: est.updatesSection?.progressNote || "",
+    nextAction: est.updatesSection?.nextAction || "",
+    followUpDate: est.updatesSection?.followUpDate || "",
+    progressPercent: est.updatesSection?.progressPercent || 0,
+    attachments: [],
+    existingAttachments: est.updateAttachments || [],
+  },
+
+  closingSection: {
+    closingSummary: est.closingSection?.closingSummary || "",
+    closingRequirements: est.closingSection?.closingRequirements || "",
+    currentStage: est.closingSection?.currentStage || "",
+    finalImages: [],
+    existingFinalImages: est.closingImages || [],
+    handoverDone: est.closingSection?.handoverDone || false,
+    paymentClosed: est.closingSection?.paymentClosed || false,
+    clientApproved: est.closingSection?.clientApproved || false,
+    supportShared: est.closingSection?.supportShared || false,
+  },
+
+  estimationDocument: null,
+  existingEstimationDocument: est.estimationDocument || "",
+  existingQuotationDocument: est.quotationDocument || "",
 });
 
 const Estimation = () => {
@@ -283,69 +365,7 @@ const Estimation = () => {
         });
 
         if (response.data.success) {
-          const loaded = response.data.estimations.map((est) => ({
-            id: est._id,
-            _id: est._id,
-            projectName: est.projectName || "",
-            estimatedCost: est.estimatedCost || "",
-            description: est.description || "",
-            clientName: est.clientName || "",
-            location: est.location || "",
-            priority: est.priority || "Medium",
-            vendorType: getVendorTypeForUI(est.vendorType),
-            vendorTypeOther: getOtherVendorTypeForUI(est.vendorType),
-            step: est.step || "Estimation",
-            updatedAt: new Date(est.updatedAt).toLocaleString(),
-
-            userDetails: {
-              clientName: est.userDetails?.clientName || "",
-              companyName: est.userDetails?.companyName || "",
-              phone: est.userDetails?.phone || "",
-              email: est.userDetails?.email || "",
-              address: est.userDetails?.address || "",
-            },
-
-            quotationDetails: {
-              quotationNumber: est.quotationDetails?.quotationNumber || "",
-              quotationDate: est.quotationDetails?.quotationDate || "",
-              validTill: est.quotationDetails?.validTill || "",
-              quotationAmount: est.quotationDetails?.quotationAmount || "",
-              notes: est.quotationDetails?.notes || "",
-              quotationDocument: null,
-            },
-
-            finalOrder: {
-              updatedDetails: est.finalOrder?.updatedDetails || "",
-              currentStage: est.finalOrder?.currentStage || "",
-              estimationCost: est.finalOrder?.estimationCost || "",
-              description: est.finalOrder?.description || "",
-              stages: est.finalOrder?.stages || "",
-              images: [],
-            },
-
-            updatesSection: {
-              updateType: est.updatesSection?.updateType || "",
-              progressTitle: est.updatesSection?.progressTitle || "",
-              progressNote: est.updatesSection?.progressNote || "",
-              nextAction: est.updatesSection?.nextAction || "",
-              followUpDate: est.updatesSection?.followUpDate || "",
-              progressPercent: est.updatesSection?.progressPercent || 0,
-              attachments: [],
-            },
-
-            closingSection: {
-              closingSummary: est.closingSection?.closingSummary || "",
-              closingRequirements: est.closingSection?.closingRequirements || "",
-              currentStage: est.closingSection?.currentStage || "",
-              finalImages: [],
-              handoverDone: est.closingSection?.handoverDone || false,
-              paymentClosed: est.closingSection?.paymentClosed || false,
-              clientApproved: est.closingSection?.clientApproved || false,
-              supportShared: est.closingSection?.supportShared || false,
-            },
-
-            estimationDocument: null,
-          }));
+          const loaded = response.data.estimations.map(mapEstimationFromApi);
 
           setProjects(loaded);
 
@@ -479,6 +499,46 @@ const Estimation = () => {
             alt="preview"
             className="h-24 w-24 rounded-xl object-cover border border-white/10"
           />
+        ))}
+      </div>
+    );
+  };
+
+
+
+  const renderExistingImages = (images = []) => {
+    if (!images.length) return null;
+
+    return (
+      <div className="mt-4 flex flex-wrap gap-3">
+        {images.map((img, index) => (
+          <img
+            key={index}
+            src={getFileUrl(img)}
+            alt="saved"
+            className="h-24 w-24 rounded-xl object-cover border border-white/10"
+          />
+        ))}
+      </div>
+    );
+  };
+
+  const renderExistingFiles = (files = []) => {
+    const fileList = Array.isArray(files) ? files : files ? [files] : [];
+    if (!fileList.length) return null;
+
+    return (
+      <div className="mt-3 flex flex-wrap gap-2">
+        {fileList.map((file, index) => (
+          <a
+            key={index}
+            href={getFileUrl(file)}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-full border border-[#a7e0a7]/20 bg-[#a7e0a7]/10 px-3 py-1 text-xs text-[#dfffdc] hover:bg-[#a7e0a7]/20"
+          >
+            View saved file {index + 1}
+          </a>
         ))}
       </div>
     );
@@ -624,40 +684,7 @@ const Estimation = () => {
         });
 
         if (refreshRes.data.success) {
-          setProjects(
-            refreshRes.data.estimations.map((est) => ({
-              id: est._id,
-              _id: est._id,
-              projectName: est.projectName,
-              estimatedCost: est.estimatedCost,
-              description: est.description,
-              clientName: est.clientName,
-              location: est.location,
-              priority: est.priority,
-              vendorType: getVendorTypeForUI(est.vendorType),
-              vendorTypeOther: getOtherVendorTypeForUI(est.vendorType),
-              step: est.step,
-              updatedAt: new Date(est.updatedAt).toLocaleString(),
-              userDetails: est.userDetails || {},
-              quotationDetails: {
-                ...est.quotationDetails,
-                quotationDocument: null,
-              },
-              finalOrder: {
-                ...est.finalOrder,
-                images: [],
-              },
-              updatesSection: {
-                ...est.updatesSection,
-                attachments: [],
-              },
-              closingSection: {
-                ...est.closingSection,
-                finalImages: [],
-              },
-              estimationDocument: null,
-            }))
-          );
+          setProjects(refreshRes.data.estimations.map(mapEstimationFromApi));
         }
       }
     } catch (err) {
@@ -817,7 +844,8 @@ const Estimation = () => {
             <div>
               <h3 className="text-sm font-semibold text-white">Upload Estimation Documents</h3>
               <p className="mt-1 text-sm text-white/50">Upload quotation sheets, BOQ files, PDFs, images, or project documents.</p>
-              <p className="mt-3 text-sm text-[#a7e0a7]">{selectedProject?.estimationDocument ? selectedProject.estimationDocument.name : "No file selected"}</p>
+              <p className="mt-3 text-sm text-[#a7e0a7]">{selectedProject?.estimationDocument ? selectedProject.estimationDocument.name : "No new file selected"}</p>
+              {renderExistingFiles(selectedProject?.existingEstimationDocument)}
             </div>
             <div className="flex gap-3">
               <input ref={fileInputRef} type="file" onChange={handleFileUpload} className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" />
@@ -853,7 +881,8 @@ const Estimation = () => {
             <div>
               <h3 className="text-sm font-semibold text-white">Upload Quotation Document</h3>
               <p className="mt-1 text-sm text-white/50">Upload quotation PDF, sheet, client approval copy, or costing document.</p>
-              <p className="mt-3 text-sm text-[#a7e0a7]">{selectedProject?.quotationDetails?.quotationDocument ? selectedProject.quotationDetails.quotationDocument.name : "No file selected"}</p>
+              <p className="mt-3 text-sm text-[#a7e0a7]">{selectedProject?.quotationDetails?.quotationDocument ? selectedProject.quotationDetails.quotationDocument.name : "No new file selected"}</p>
+              {renderExistingFiles(selectedProject?.existingQuotationDocument)}
             </div>
             <div className="flex gap-3">
               <input ref={quotationFileInputRef} type="file" onChange={handleQuotationFileUpload} className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" />
@@ -889,6 +918,7 @@ const Estimation = () => {
           <div className="flex gap-3"><input ref={finalOrderImageRef} type="file" multiple onChange={(e) => handleArrayFilesChange("finalOrder", "images", e.target.files)} className="hidden" accept=".jpg,.jpeg,.png,.webp" /><button type="button" onClick={() => finalOrderImageRef.current?.click()} className="inline-flex items-center gap-2 rounded-2xl bg-[#8B5A2B] px-5 py-3 text-sm font-semibold text-white transition hover:scale-[1.02]"><ImageIcon size={16} /> Upload Images</button></div>
         </div>
         {renderImagePreview(selectedProject?.finalOrder?.images)}
+        {renderExistingImages(selectedProject?.finalOrder?.existingImages)}
       </div>
     </div>
   );
@@ -915,7 +945,7 @@ const Estimation = () => {
       </div>
       <div className="rounded-[22px] border border-dashed border-[#a7e0a7]/30 bg-[#0d1729]/70 p-5">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div><h3 className="text-sm font-semibold text-white">Upload Update Attachments</h3><p className="mt-1 text-sm text-white/50">Upload screenshots, update sheets, progress images, or site files.</p><div className="mt-3">{renderFileNames(selectedProject?.updatesSection?.attachments)}</div></div>
+          <div><h3 className="text-sm font-semibold text-white">Upload Update Attachments</h3><p className="mt-1 text-sm text-white/50">Upload screenshots, update sheets, progress images, or site files.</p><div className="mt-3">{renderFileNames(selectedProject?.updatesSection?.attachments)}</div>{renderExistingFiles(selectedProject?.updatesSection?.existingAttachments)}</div>
           <div className="flex gap-3"><input ref={updateAttachmentRef} type="file" multiple onChange={(e) => handleArrayFilesChange("updatesSection", "attachments", e.target.files)} className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" /><button type="button" onClick={() => updateAttachmentRef.current?.click()} className="inline-flex items-center gap-2 rounded-2xl bg-[#8B5A2B] px-5 py-3 text-sm font-semibold text-white transition hover:scale-[1.02]"><Upload size={16} /> Upload Attachments</button></div>
         </div>
       </div>
@@ -948,6 +978,7 @@ const Estimation = () => {
           <div className="flex gap-3"><input ref={closingImageRef} type="file" multiple onChange={(e) => handleArrayFilesChange("closingSection", "finalImages", e.target.files)} className="hidden" accept=".jpg,.jpeg,.png,.webp" /><button type="button" onClick={() => closingImageRef.current?.click()} className="inline-flex items-center gap-2 rounded-2xl bg-[#8B5A2B] px-5 py-3 text-sm font-semibold text-white transition hover:scale-[1.02]"><ImageIcon size={16} /> Upload Closing Images</button></div>
         </div>
         {renderImagePreview(selectedProject?.closingSection?.finalImages)}
+        {renderExistingImages(selectedProject?.closingSection?.existingFinalImages)}
       </div>
     </div>
   );
@@ -963,7 +994,11 @@ const Estimation = () => {
     }
   };
 
-  const summaryCurrentImagesCount = (selectedProject?.finalOrder?.images?.length || 0) + (selectedProject?.closingSection?.finalImages?.length || 0);
+  const summaryCurrentImagesCount =
+    (selectedProject?.finalOrder?.images?.length || 0) +
+    (selectedProject?.finalOrder?.existingImages?.length || 0) +
+    (selectedProject?.closingSection?.finalImages?.length || 0) +
+    (selectedProject?.closingSection?.existingFinalImages?.length || 0);
 
   if (loading) {
     return <div className="min-h-screen bg-[#05070d] flex items-center justify-center"><div className="text-white text-xl">Loading estimations...</div></div>;

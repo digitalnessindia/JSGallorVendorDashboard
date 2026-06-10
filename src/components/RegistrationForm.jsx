@@ -67,7 +67,9 @@ const RegistrationForm = () => {
     setFormData((prev) => ({
       ...prev,
       [name]: value,
-      ...(name === "category" && value !== "Other" ? { otherCategory: "" } : {}),
+      ...(name === "category" && value !== "Other"
+        ? { otherCategory: "" }
+        : {}),
     }));
 
     if (name === "password" || name === "confirmPassword") {
@@ -85,13 +87,9 @@ const RegistrationForm = () => {
 
   const validatePassword = () => {
     const { password, confirmPassword } = formData;
-    const strongRegex =
-      /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
 
-    if (!strongRegex.test(password)) {
-      setPasswordError(
-        "Password must be at least 8 characters and include uppercase, lowercase, number, and special character."
-      );
+    if (!password.trim()) {
+      setPasswordError("Password is required.");
       return false;
     }
 
@@ -156,7 +154,9 @@ const RegistrationForm = () => {
         if (portfolioInputRef.current) portfolioInputRef.current.value = "";
         if (productInputRef.current) productInputRef.current.value = "";
       } else {
-        setErrorMsg(response.data.message || "Registration failed. Please try again.");
+        setErrorMsg(
+          response.data.message || "Registration failed. Please try again."
+        );
       }
     } catch (error) {
       console.error("Registration error:", error);
@@ -283,7 +283,7 @@ const RegistrationForm = () => {
                   value={formData.password}
                   onChange={handleChange}
                   required
-                  placeholder="Create a strong password"
+                  placeholder="Create password"
                   className={inputClass}
                 />
               </div>

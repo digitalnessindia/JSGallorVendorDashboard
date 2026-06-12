@@ -1112,7 +1112,15 @@ const Estimation = () => {
                   <div className="flex flex-col gap-3 border-t border-white/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
                     <button type="button" onClick={handlePrevStep} disabled={activeStep === 0} className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40">Previous Step</button>
                     <div className="flex flex-col gap-3 sm:flex-row">
-                      <button type="button" onClick={handleNextStep} className="rounded-2xl bg-[#a7e0a7] px-5 py-3 text-sm font-semibold text-[#111827] transition hover:scale-[1.02]">Next Step</button>
+                      {activeStep < workflowSteps.length - 1 && (
+                        <button
+                          type="button"
+                          onClick={handleNextStep}
+                          className="rounded-2xl bg-[#a7e0a7] px-5 py-3 text-sm font-semibold text-[#111827] transition hover:scale-[1.02]"
+                        >
+                          Next Step
+                        </button>
+                      )}
                       {/* Submit Button (updated) */}
                       <button
                         type="submit"

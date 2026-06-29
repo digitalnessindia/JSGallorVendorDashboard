@@ -42,6 +42,10 @@ const initialFormData = {
   businessDesc: "",
 };
 
+const EyeIcon = ({ open }) => (
+  <span className="text-lg">{open ? "🙈" : "👁️"}</span>
+);
+
 const RegistrationForm = () => {
   const [formData, setFormData] = useState(initialFormData);
 
@@ -53,11 +57,17 @@ const RegistrationForm = () => {
   const [errorMsg, setErrorMsg] = useState("");
   const [passwordError, setPasswordError] = useState("");
 
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const portfolioInputRef = useRef(null);
   const productInputRef = useRef(null);
 
   const inputClass =
     "w-full rounded-xl border border-gray-300 bg-white/5 text-gray-900 placeholder:text-gray-700 px-4 py-3 outline-none focus:border-[#C6A43B] focus:ring-2 focus:ring-[#C6A43B]/30";
+
+  const passwordInputClass =
+    "w-full rounded-xl border border-gray-300 bg-white/5 text-gray-900 placeholder:text-gray-700 px-4 py-3 pr-12 outline-none focus:border-[#C6A43B] focus:ring-2 focus:ring-[#C6A43B]/30";
 
   const labelClass = "block text-[#8B5A2B] font-medium mb-2";
 
@@ -150,6 +160,8 @@ const RegistrationForm = () => {
         setFormData(initialFormData);
         setPortfolioFiles([]);
         setProductImages([]);
+        setShowPassword(false);
+        setShowConfirmPassword(false);
 
         if (portfolioInputRef.current) portfolioInputRef.current.value = "";
         if (productInputRef.current) productInputRef.current.value = "";
@@ -277,28 +289,54 @@ const RegistrationForm = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
                 <label className={labelClass}>Password *</label>
-                <input
-                  type="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  required
-                  placeholder="Create password"
-                  className={inputClass}
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    name="password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    required
+                    placeholder="Create password"
+                    className={passwordInputClass}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="absolute inset-y-0 right-3 flex items-center text-gray-600 hover:text-[#8B5A2B]"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    <EyeIcon open={showPassword} />
+                  </button>
+                </div>
               </div>
 
               <div>
                 <label className={labelClass}>Confirm Password *</label>
-                <input
-                  type="password"
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  required
-                  placeholder="Re-enter your password"
-                  className={inputClass}
-                />
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    required
+                    placeholder="Re-enter your password"
+                    className={passwordInputClass}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((prev) => !prev)}
+                    className="absolute inset-y-0 right-3 flex items-center text-gray-600 hover:text-[#8B5A2B]"
+                    aria-label={
+                      showConfirmPassword
+                        ? "Hide confirm password"
+                        : "Show confirm password"
+                    }
+                  >
+                    <EyeIcon open={showConfirmPassword} />
+                  </button>
+                </div>
               </div>
             </div>
 

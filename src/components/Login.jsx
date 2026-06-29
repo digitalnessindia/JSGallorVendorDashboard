@@ -17,15 +17,56 @@ const VendorLogin = () => {
     confirmPassword: "",
   });
 
-  const [mode, setMode] = useState("login"); 
-  // login | forgot | reset
+  const [mode, setMode] = useState("login");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const inputClass =
     "w-full rounded-xl border border-gray-300 bg-white/5 text-gray-900 placeholder:text-gray-700 px-4 py-3 outline-none focus:border-[#C6A43B] focus:ring-2 focus:ring-[#C6A43B]/30 transition";
+
+  const passwordInputClass =
+    "w-full rounded-xl border border-gray-300 bg-white/5 text-gray-900 placeholder:text-gray-700 px-4 py-3 pr-12 outline-none focus:border-[#C6A43B] focus:ring-2 focus:ring-[#C6A43B]/30 transition";
+
+  const PasswordField = ({
+    label,
+    name,
+    value,
+    onChange,
+    placeholder,
+    showPassword,
+    setShowPassword,
+  }) => (
+    <div>
+      <label className="block text-[#8B5A2B] font-medium mb-2">{label}</label>
+
+      <div className="relative">
+        <input
+          type={showPassword ? "text" : "password"}
+          name={name}
+          value={value}
+          onChange={onChange}
+          required
+          placeholder={placeholder}
+          className={passwordInputClass}
+        />
+
+        <button
+          type="button"
+          onClick={() => setShowPassword((prev) => !prev)}
+          className="absolute inset-y-0 right-3 flex items-center text-gray-600 hover:text-[#8B5A2B]"
+          aria-label={showPassword ? "Hide password" : "Show password"}
+        >
+          {showPassword ? "🙈" : "👁️"}
+        </button>
+      </div>
+    </div>
+  );
 
   const handleChange = (e) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -56,7 +97,9 @@ const VendorLogin = () => {
         setErrorMsg("Invalid response from server");
       }
     } catch (error) {
-      setErrorMsg(error.response?.data?.message || "Login failed. Please try again.");
+      setErrorMsg(
+        error.response?.data?.message || "Login failed. Please try again."
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -120,6 +163,8 @@ const VendorLogin = () => {
           newPassword: "",
           confirmPassword: "",
         });
+        setShowNewPassword(false);
+        setShowConfirmPassword(false);
         setMode("login");
       } else {
         setErrorMsg(response.data.message || "Password reset failed.");
@@ -192,20 +237,15 @@ const VendorLogin = () => {
                 />
               </div>
 
-              <div>
-                <label className="block text-[#8B5A2B] font-medium mb-2">
-                  Password *
-                </label>
-                <input
-                  type="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  required
-                  placeholder="Enter your password"
-                  className={inputClass}
-                />
-              </div>
+              <PasswordField
+                label="Password *"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                placeholder="Enter your password"
+                showPassword={showLoginPassword}
+                setShowPassword={setShowLoginPassword}
+              />
 
               {errorMsg && (
                 <div className="rounded-xl border border-red-500/30 bg-red-500/10 text-red-700 p-3 text-sm">
@@ -328,35 +368,25 @@ const VendorLogin = () => {
                 />
               </div>
 
-              <div>
-                <label className="block text-[#8B5A2B] font-medium mb-2">
-                  New Password *
-                </label>
-                <input
-                  type="password"
-                  name="newPassword"
-                  value={forgotData.newPassword}
-                  onChange={handleForgotChange}
-                  required
-                  placeholder="Enter new password"
-                  className={inputClass}
-                />
-              </div>
+              <PasswordField
+                label="New Password *"
+                name="newPassword"
+                value={forgotData.newPassword}
+                onChange={handleForgotChange}
+                placeholder="Enter new password"
+                showPassword={showNewPassword}
+                setShowPassword={setShowNewPassword}
+              />
 
-              <div>
-                <label className="block text-[#8B5A2B] font-medium mb-2">
-                  Confirm New Password *
-                </label>
-                <input
-                  type="password"
-                  name="confirmPassword"
-                  value={forgotData.confirmPassword}
-                  onChange={handleForgotChange}
-                  required
-                  placeholder="Re-enter new password"
-                  className={inputClass}
-                />
-              </div>
+              <PasswordField
+                label="Confirm New Password *"
+                name="confirmPassword"
+                value={forgotData.confirmPassword}
+                onChange={handleForgotChange}
+                placeholder="Re-enter new password"
+                showPassword={showConfirmPassword}
+                setShowPassword={setShowConfirmPassword}
+              />
 
               {errorMsg && (
                 <div className="rounded-xl border border-red-500/30 bg-red-500/10 text-red-700 p-3 text-sm">

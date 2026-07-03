@@ -688,15 +688,8 @@ const Estimation = () => {
         }
       }
     } catch (err) {
-      console.error("Submit Error:", err);
-
-      if (err.response?.data?.message) {
-        setError(err.response.data.message);
-      } else if (err.message) {
-        setError(err.message);
-      } else {
-        setError("Something went wrong");
-      }
+      console.error("Submit Error:", err.response?.data || err);
+      setError(err?.response?.data?.message || err?.message || "Something went wrong");
     } finally {
       setSubmitting(false);
     }

@@ -161,9 +161,34 @@ const Documentation = () => {
 
   const getFileUrl = (filePath) => {
     if (!filePath) return "#";
-    // Assume backend serves uploaded files at /uploads
-    const clean = filePath.replace(/^uploads[\\/]/, "");
-    return `https://api.jsgallor.com/uploads/${clean}`;
+    if (filePath.startsWith("http://") || filePath.startsWith("https://")) return filePath;
+    const clean = filePath.replace(/\\/g, "/").replace(/^\/?uploads\//, "");
+    const apiBase = import.meta.env.VITE_API_BASE_URL || "https://api.jsgallor.com";
+    return `${apiBase}/uploads/${clean}`;
+  };
+
+  const handleDownload = async (doc) => {
+    const url = getFileUrl(doc.filePath);
+    if (!url || url === "#") {
+      alert("Invalid file URL");
+      return;
+    }
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Download failed: ${response.statusText}`);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = doc.fileName || doc.documentName || "document";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.warn("Direct blob download failed, falling back to window.open:", err);
+      window.open(url, "_blank");
+    }
   };
 
   if (loading) {
@@ -304,13 +329,13 @@ const Documentation = () => {
                       >
                         <Eye size={14} /> View
                       </a>
-                      <a
-                        href={getFileUrl(doc.filePath)}
-                        download={doc.fileName}
-                        className="text-[#7a5c2e] hover:underline inline-flex items-center gap-1"
+                      <button
+                        type="button"
+                        onClick={() => handleDownload(doc)}
+                        className="text-[#7a5c2e] hover:underline inline-flex items-center gap-1 cursor-pointer"
                       >
                         <Download size={14} /> Download
-                      </a>
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleDelete(doc._id)}

@@ -1,23 +1,26 @@
 import React from "react";
+import testimonialImg1 from "../testimonialImg/testmonialImg1.png";
+import testimonialImg2 from "../testimonialImg/testimonialImg2.png";
+import testimonialImg3 from "../testimonialImg/testmonialImg3.png";
 
 const testimonials = [
   {
     id: 1,
     title: "Our Manufacturing Excellence",
     desc: "State-of-the-art factory ensuring precision, quality control, and timely production.",
-    image: "/src/testimonialImg/testmonialImg1.png",
+    image: testimonialImg1,
   },
   {
     id: 2,
     title: "Premium Fabric Collections",
     desc: "Wide range of luxury fabrics curated for durability, comfort, and elegance.",
-    image: "/src/testimonialImg/testimonialImg2.png",
+    image: testimonialImg2,
   },
   {
     id: 3,
     title: "Quality Wood Selection",
     desc: "Carefully selected hardwoods and engineered wood ensuring long-lasting strength.",
-    image: "/src/testimonialImg/testmonialImg3.png",
+    image: testimonialImg3,
   },
 ];
 

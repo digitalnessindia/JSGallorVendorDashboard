@@ -267,9 +267,10 @@ const Portfolio = () => {
   // Helper to display file URLs (assuming backend serves uploaded files)
   const getFileUrl = (url) => {
     if (!url) return "#";
-    if (url.startsWith("http")) return url;
-    const clean = url.replace(/^uploads[\\/]/, "");
-    return `https://api.jsgallor.com/uploads/${clean}`;
+    if (url.startsWith("http://") || url.startsWith("https://")) return url;
+    const clean = url.replace(/\\/g, "/").replace(/^\/?uploads\//, "");
+    const apiBase = import.meta.env.VITE_API_BASE_URL || "https://api.jsgallor.com";
+    return `${apiBase}/uploads/${clean}`;
   };
 
   return (

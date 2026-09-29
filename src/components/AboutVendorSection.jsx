@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from "react";
+import furnitureImg1 from "../aboutSectionImage/furnitureImg1.png";
+import furnitureImg2 from "../aboutSectionImage/furnitureImg2.png";
+import furnitureImg3 from "../aboutSectionImage/furnitureimg3.png";
+import furnitureImg4 from "../aboutSectionImage/furnitureImg4.png";
+import furnitureImg5 from "../aboutSectionImage/furnitureImg5.png";
 
 const images = [
-  "/src/aboutSectionImage/furnitureImg1.png",
-  "/src/aboutSectionImage/furnitureImg2.png",
-  "/src/aboutSectionImage/furnitureimg3.png",
-  "/src/aboutSectionImage/furnitureImg4.png",
-  "/src/aboutSectionImage/furnitureImg5.png",
+  furnitureImg1,
+  furnitureImg2,
+  furnitureImg3,
+  furnitureImg4,
+  furnitureImg5,
 ];
 
 const focusPoints = [
@@ -98,7 +103,7 @@ const AboutVendorSection = () => {
             <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-yellow-500/10 blur-3xl rounded-full"></div>
 
             {/* Carousel Container */}
-            <div className="relative rounded-3xl overflow-hidden border border-white/10 shadow-[0_0_50px_rgba(255,193,7,0.08)] min-h-125 md:min-h-162.5">
+            <div className="relative rounded-3xl overflow-hidden border border-white/10 shadow-[0_0_50px_rgba(255,193,7,0.08)] h-[500px] sm:h-[550px] lg:h-[600px] w-full min-h-[450px]">
               {/* Images */}
               {images.map((img, index) => (
                 <img

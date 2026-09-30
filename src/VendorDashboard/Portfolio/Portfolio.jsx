@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "../../utils/axios";
-import { Loader2, Upload, Edit } from "lucide-react";
+import { Loader2, Upload, Edit, Link as LinkIcon, Video, X, Plus, Trash2 } from "lucide-react";
 
 const portfolioStats = [
   { title: "Projects Delivered", value: "120+" },
@@ -50,6 +50,15 @@ const Portfolio = () => {
   const [portfolioImages, setPortfolioImages] = useState([]);
   const [testimonials, setTestimonials] = useState([]);
   const [stats, setStats] = useState(portfolioStats);
+
+  // Video link / upload modal state
+  const [videoModalOpen, setVideoModalOpen] = useState(false);
+  const [videoModalMode, setVideoModalMode] = useState("add"); // "add" | "update"
+  const [selectedVideoIndex, setSelectedVideoIndex] = useState(null);
+  const [videoFormTitle, setVideoFormTitle] = useState("");
+  const [videoSourceType, setVideoSourceType] = useState("link"); // "link" | "file"
+  const [videoFormLink, setVideoFormLink] = useState("");
+  const [videoFormFile, setVideoFormFile] = useState(null);
 
   const videoInputRefs = useRef([]);
   const imageInputRefs = useRef([]);
@@ -196,40 +205,99 @@ const Portfolio = () => {
     }
   };
 
-  // Add new video
-  const handleAddVideo = async () => {
-    if (!vendorId) return;
-    const title = window.prompt("Enter video title:", "New Project Video");
-    if (!title) return;
+  // Open modal to add a new video
+  const openAddVideoModal = () => {
+    setVideoModalMode("add");
+    setSelectedVideoIndex(null);
+    setVideoFormTitle("");
+    setVideoSourceType("link");
+    setVideoFormLink("");
+    setVideoFormFile(null);
+    setVideoModalOpen(true);
+  };
 
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "video/*";
-    input.onchange = async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      setUpdating(true);
-      const formData = new FormData();
-      formData.append("vendorId", vendorId);
-      formData.append("video", file);
-      formData.append("title", title);
-      try {
-        const response = await axios.post("/api/vendors/portfolio/video", formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-        if (response.data.success) {
-          setVideos((prev) => [...prev, { title, url: response.data.videoUrl }]);
-        } else {
-          alert("Failed to add video");
-        }
-      } catch (err) {
-        console.error(err);
-        alert("Upload failed");
-      } finally {
-        setUpdating(false);
+  // Open modal to update an existing video
+  const openUpdateVideoModal = (index) => {
+    const v = videos[index];
+    setVideoModalMode("update");
+    setSelectedVideoIndex(index);
+    setVideoFormTitle(v?.title || "");
+    const isUrl = v?.url?.startsWith("http://") || v?.url?.startsWith("https://");
+    setVideoSourceType(isUrl ? "link" : "file");
+    setVideoFormLink(isUrl ? v.url : "");
+    setVideoFormFile(null);
+    setVideoModalOpen(true);
+  };
+
+  // Save video (from link or file upload)
+  const handleSaveVideo = async (e) => {
+    e.preventDefault();
+    if (!vendorId) {
+      alert("Vendor ID missing. Please login again.");
+      return;
+    }
+
+    if (!videoFormTitle.trim()) {
+      alert("Please enter a video title.");
+      return;
+    }
+
+    if (videoSourceType === "link") {
+      if (!videoFormLink.trim()) {
+        alert("Please enter a valid video link (e.g. YouTube URL).");
+        return;
       }
-    };
-    input.click();
+    } else {
+      if (!videoFormFile && videoModalMode === "add") {
+        alert("Please select a video file to upload.");
+        return;
+      }
+    }
+
+    setUpdating(true);
+    const formData = new FormData();
+    formData.append("vendorId", vendorId);
+    formData.append("title", videoFormTitle.trim());
+
+    if (selectedVideoIndex !== null) {
+      formData.append("videoIndex", selectedVideoIndex);
+    }
+
+    if (videoSourceType === "link") {
+      formData.append("videoUrl", videoFormLink.trim());
+    } else if (videoFormFile) {
+      formData.append("video", videoFormFile);
+    }
+
+    try {
+      const response = await axios.post("/api/vendors/portfolio/video", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      if (response.data.success) {
+        if (response.data.videos) {
+          setVideos(response.data.videos);
+        } else {
+          const newVid = {
+            title: videoFormTitle.trim(),
+            url: response.data.videoUrl || (videoSourceType === "link" ? videoFormLink.trim() : ""),
+          };
+          if (selectedVideoIndex !== null) {
+            setVideos((prev) => prev.map((v, i) => (i === selectedVideoIndex ? newVid : v)));
+          } else {
+            setVideos((prev) => [...prev, newVid]);
+          }
+        }
+        setVideoModalOpen(false);
+      } else {
+        alert(response.data.message || "Failed to save video");
+      }
+    } catch (err) {
+      console.error("Save error:", err);
+      alert(err.response?.data?.message || "Failed to save video");
+    } finally {
+      setUpdating(false);
+    }
   };
 
   // Delete video
@@ -316,7 +384,7 @@ const Portfolio = () => {
               <p className="mt-2 text-base text-[#6b7280]">Showcase your latest videos (YouTube or uploaded).</p>
             </div>
             <button
-              onClick={handleAddVideo}
+              onClick={openAddVideoModal}
               disabled={updating}
               className="rounded-full border border-[#a7e0a7]/50 bg-[#f3fff1] px-5 py-2 text-sm font-semibold text-[#355b35] transition hover:bg-[#e8fbe4] disabled:opacity-50"
             >
@@ -330,7 +398,7 @@ const Portfolio = () => {
                   <h3 className="text-xl font-bold text-[#1f2937]">{video.title}</h3>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => videoInputRefs.current[index]?.click()}
+                      onClick={() => openUpdateVideoModal(index)}
                       className="rounded-full border border-[#f2e4c8] bg-[#fffaf0] px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#7a5c2e] hover:bg-[#fff4df]"
                     >
                       Update
@@ -431,6 +499,150 @@ const Portfolio = () => {
           </div>
         </div>
       </div>
+
+      {/* Video Modal: Link or Upload File */}
+      {videoModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-lg rounded-3xl border border-white/80 bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+              <div>
+                <h3 className="text-xl font-bold text-[#1f2937]">
+                  {videoModalMode === "add" ? "Add Portfolio Video" : "Update Portfolio Video"}
+                </h3>
+                <p className="text-xs text-[#6b7280] mt-0.5">
+                  Paste a video link (YouTube / URL) or upload a video file.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setVideoModalOpen(false)}
+                className="rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveVideo} className="mt-5 space-y-4">
+              {/* Title input */}
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-[#374151] mb-1.5">
+                  Video Title *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Modern Villa Interior Walkthrough"
+                  value={videoFormTitle}
+                  onChange={(e) => setVideoFormTitle(e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-[#1f2937] focus:border-[#355b35] focus:outline-none focus:ring-1 focus:ring-[#355b35]"
+                />
+              </div>
+
+              {/* Source type tabs */}
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-[#374151] mb-1.5">
+                  Video Method
+                </label>
+                <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setVideoSourceType("link")}
+                    className={`flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-semibold transition ${
+                      videoSourceType === "link"
+                        ? "bg-white text-[#355b35] shadow-xs"
+                        : "text-gray-600 hover:text-gray-900"
+                    }`}
+                  >
+                    <LinkIcon size={14} />
+                    <span>Paste Video Link</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVideoSourceType("file")}
+                    className={`flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-semibold transition ${
+                      videoSourceType === "file"
+                        ? "bg-white text-[#355b35] shadow-xs"
+                        : "text-gray-600 hover:text-gray-900"
+                    }`}
+                  >
+                    <Upload size={14} />
+                    <span>Upload Video File</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Link Input */}
+              {videoSourceType === "link" ? (
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-[#4b5563]">
+                    Video URL / YouTube Link *
+                  </label>
+                  <input
+                    type="url"
+                    required
+                    placeholder="https://www.youtube.com/watch?v=... or https://youtu.be/..."
+                    value={videoFormLink}
+                    onChange={(e) => setVideoFormLink(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-[#1f2937] focus:border-[#355b35] focus:outline-none focus:ring-1 focus:ring-[#355b35]"
+                  />
+                  <p className="text-[11px] text-gray-500">
+                    Supports YouTube links, Shorts, Vimeo, or direct video URLs.
+                  </p>
+                </div>
+              ) : (
+                /* File Input */
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-[#4b5563]">
+                    Select Video File (MP4, WebM, MOV) {videoModalMode === "add" ? "*" : ""}
+                  </label>
+                  <div className="relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 p-6 hover:border-[#355b35]/60 transition bg-gray-50/50">
+                    <Video className="h-8 w-8 text-[#355b35]/70 mb-2" />
+                    <input
+                      type="file"
+                      accept="video/*"
+                      onChange={(e) => setVideoFormFile(e.target.files?.[0] || null)}
+                      className="absolute inset-0 cursor-pointer opacity-0"
+                    />
+                    <p className="text-xs text-gray-700 font-medium">
+                      {videoFormFile ? videoFormFile.name : "Click to browse or drag video file here"}
+                    </p>
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      {videoFormFile
+                        ? `${(videoFormFile.size / (1024 * 1024)).toFixed(2)} MB`
+                        : "MP4, WebM, or MOV formats"}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setVideoModalOpen(false)}
+                  className="rounded-full px-5 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={updating}
+                  className="inline-flex items-center gap-2 rounded-full bg-[#355b35] px-6 py-2 text-xs font-semibold text-white shadow-md hover:bg-[#274227] transition disabled:opacity-50"
+                >
+                  {updating ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <span>{videoModalMode === "add" ? "Add Video" : "Update Video"}</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </section>
   );
 };
